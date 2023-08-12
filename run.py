@@ -85,7 +85,7 @@ def getActionByName(sys: System, name: str) -> Action:
     raise Exception('getActionByName: no action found with name %s' % name)
 
 # Assert conjunction of all component state invariants:
-# /\sys.assumptions and /\{c.invariant | c ∈ sys}.
+# ⋀sys.assumptions and ⋀{c.invariant | c ∈ sys.components}.
 def assertInvariants(yices_ctx: Context, env: Dict[str, any], sys: System):
     yices_ctx.assert_formulas([compileExpr(env, e) for e in sys.assumptions])
     yices_ctx.assert_formulas([compileExpr(env, c.invariant) for c in sys.components])
@@ -95,23 +95,23 @@ def assertInvariants(yices_ctx: Context, env: Dict[str, any], sys: System):
 # action a, need to verify:
 
 # For 'when issued' UCA:
-# forall system states, /\a.constraints => ~u.context
-# <=> ~ (exists system state, ~(/\a.constraints => ~u.context))
-# <=> ~ (exists system state, ~(~/\a.constraints \/ ~u.context))
-# <=> ~ (exists system state, /\a.constraints /\ u.context).
+# forall system states, ⋀a.constraints ⇒ ¬u.context
+# <=> ~ (exists system state, ~(⋀a.constraints ⇒ ¬u.context))
+# <=> ~ (exists system state, ~(~⋀a.constraints ∨ ¬u.context))
+# <=> ~ (exists system state, ⋀a.constraints ∧ u.context).
 
 # I.e., check unsatisfiability of the conjunction of all the
 # constraints with the UCA context.
 
 # For 'when not issued' UCA:
-# forall system states, u.context => /\a.constraints
-# <=> ~ (exists system state, ~(u.context => /\a.constraints))
-# <=> ~ (exists system state, ~(~u.context \/ /\a.constraints))
-# <=> ~ (exists system state, u.context /\ ~/\a.constraints)
-# <=> ~ (exists system state, u.context /\ \/{~P | P \in a.constraints}).
+# forall system states, u.context ⇒ ⋀a.constraints
+# <=> ~ (exists system state, ¬(u.context ⇒ ⋀a.constraints))
+# <=> ~ (exists system state, ¬(¬u.context ∨ ⋀a.constraints))
+# <=> ~ (exists system state, u.context ∧ ¬⋀a.constraints)
+# <=> ~ (exists system state, u.context ∧ ⋁{¬P | P ∈ a.constraints}).
 
 # I.e., check unsatisfiability of conjunction of UCA context with
-# disjunction of constraints.
+# disjunction of negated constraints.
 def checkConstraints(yices_ctx: Context,
                      env: Dict[str, any],
                      sys: System,
@@ -168,8 +168,10 @@ def genScenarios(yices_ctx: Context, sys: System):
 
 # Test system.
 sys: System = System(name = 'aircraft_brakes_system',
+                     
                      types = [TypeDecl(name = 'DryOrWet',
                                        elements = ['dry', 'wet'])],
+                     
                      components =
                      [Component(name = 'aircraft',
                                 state = [('landing', 'bool')],
@@ -185,6 +187,7 @@ sys: System = System(name = 'aircraft_brakes_system',
                                 state = [('weight_on_wheels', 'bool')],
                                 invariant = 'true',
                                 actions = [])],
+                     
                      assumptions =
                      [when(conj([NameExpr('aircraft', 'landing'),
                                  eq(NameExpr('environment', 'runway_status'),
