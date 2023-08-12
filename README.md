@@ -119,7 +119,7 @@ Currently only the first two types of UCAs are supported, but I think
 the other two can actually be simulated via these two so they may be
 the only ones necessary.
 
-## Example system
+# Example system
 
 The following is a small example system specified in a hypothetical
 concrete syntax (a parser for this syntax isn't implemented -- the
@@ -167,7 +167,7 @@ Failed to verify UCA. Counterexample:
 (= runway_status wet)
 ```
 
-## UCA verification
+# UCA verification
 
 The solver does the following for each UCA of type 'issued' (where the
 action is potentially hazardous when issued in the given context):
