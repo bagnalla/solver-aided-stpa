@@ -103,7 +103,7 @@ class System:
 
 The type declarations are for declaring enum types. The assumptions
 are like component state invariants but are global so they can express
-assumptions about relations between different components.
+relations between different components.
 
 ## UCAs
 
@@ -123,7 +123,7 @@ the only ones necessary.
 
 The following is a small example system specified in a hypothetical
 concrete syntax (a parser for this syntax isn't implemented -- the
-system is currently is encoded directly in the above data structures
+system is currently encoded directly in the above data structures
 in the file [run.py](run.py).
 
 ```
