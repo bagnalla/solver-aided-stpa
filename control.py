@@ -82,11 +82,11 @@ class Action:
 
 @dataclass(frozen=True)
 class Component:
-    name:      str                    # Name of component.
-    state:     List[Tuple[str, Type]] # Internal state of component.
-    invariant: Expr                   # Invariant property of internal state.
-    actions:   List[Action]           # Control actions that can be
-                                      # performed by this component.
+    name:      str           # Name of component.
+    state:     List[VarDecl] # Internal state of component.
+    invariant: Expr          # Invariant property of internal state.
+    actions:   List[Action]  # Control actions that can be performed
+                             # by this component.
 
 @dataclass(frozen=True)
 class System:
@@ -151,8 +151,8 @@ def buildTypingCtx(s: System) -> Dict[str, Type]:
             else:
                 ctx[el] = NamedType(decl.name)
     for c in s.components:
-        for name, ty in c.state:
-            ctx[c.name + '_' + name] = ty
+        for var in c.state:
+            ctx[c.name + '_' + var.name] = var.ty
     return ctx
 
 def tycheckExpr(e: Expr, ctx: Dict[str, Type]) -> Type:

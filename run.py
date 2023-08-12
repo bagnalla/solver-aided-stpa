@@ -2,7 +2,7 @@ from yices import *
 
 from control import Action, BinaryExpr, buildTypingCtx, Component, conj, disj, \
     eq, Expr, NamedType, IntLiteral, NameExpr, neg, System, tycheckSystem, tycheckUCA, \
-    Type, TypeDecl, UCA, UnaryExpr, when
+    Type, TypeDecl, UCA, UnaryExpr, VarDecl, when
 
 from typing import Dict, List, Tuple
 
@@ -65,15 +65,17 @@ def setupYicesContext(sys: System) -> Tuple[Context, Dict[str, any]]:
 
     # Declare component state variables.
     for c in sys.components:
-        for name, ty in c.state:
-            match ty:
+        for var in c.state:
+            match var.ty:
                 case 'bool':
-                    env['%s_%s' % (c.name, name)] = Terms.new_uninterpreted_term(bool_t, name)
+                    env['%s_%s' % (c.name, var.name)] = \
+                        Terms.new_uninterpreted_term(bool_t, var.name)
                 case 'int':
-                    env['%s_%s' % (c.name, name)] = Terms.new_uninterpreted_term(int_t, name)
+                    env['%s_%s' % (c.name, var.name)] = \
+                        Terms.new_uninterpreted_term(int_t, var.name)
                 case NamedType():
-                    env['%s_%s' % (c.name, name)] = \
-                        Terms.new_uninterpreted_term(types[ty.name], name)
+                    env['%s_%s' % (c.name, var.name)] = \
+                        Terms.new_uninterpreted_term(types[var.ty.name], var.name)
 
     return yices_ctx, env
 
@@ -112,6 +114,7 @@ def assertInvariants(yices_ctx: Context, env: Dict[str, any], sys: System):
 
 # I.e., check unsatisfiability of conjunction of UCA context with
 # disjunction of negated constraints.
+
 def checkConstraints(yices_ctx: Context,
                      env: Dict[str, any],
                      sys: System,
@@ -174,17 +177,17 @@ sys: System = System(name = 'aircraft_brakes_system',
                      
                      components =
                      [Component(name = 'aircraft',
-                                state = [('landing', 'bool')],
+                                state = [VarDecl('landing', 'bool')],
                                 invariant = 'true',
                                 actions = [Action(name = 'hit_brakes',
                                                   constraints =
                                                   [NameExpr('wheels', 'weight_on_wheels')])]),
                       Component(name = 'environment',
-                                state = [('runway_status', NamedType('DryOrWet'))],
+                                state = [VarDecl('runway_status', NamedType('DryOrWet'))],
                                 invariant = 'true',
                                 actions = []),
                       Component(name = 'wheels',
-                                state = [('weight_on_wheels', 'bool')],
+                                state = [VarDecl('weight_on_wheels', 'bool')],
                                 invariant = 'true',
                                 actions = [])],
                      
