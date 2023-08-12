@@ -95,20 +95,20 @@ def assertInvariants(yices_ctx: Context, env: Dict[str, any], sys: System):
 # action a, need to verify:
 
 # For 'when issued' UCA:
-# forall system states, ⋀a.constraints ⇒ ¬u.context
-# <=> ~ (exists system state, ~(⋀a.constraints ⇒ ¬u.context))
-# <=> ~ (exists system state, ~(~⋀a.constraints ∨ ¬u.context))
-# <=> ~ (exists system state, ⋀a.constraints ∧ u.context).
+# ∀ system states, ⋀a.constraints ⇒ ¬u.context
+# ⇔ ~ (∃ system state, ~(⋀a.constraints ⇒ ¬u.context))
+# ⇔ ~ (∃ system state, ~(~⋀a.constraints ∨ ¬u.context))
+# ⇔ ~ (∃ system state, ⋀a.constraints ∧ u.context).
 
 # I.e., check unsatisfiability of the conjunction of all the
 # constraints with the UCA context.
 
 # For 'when not issued' UCA:
-# forall system states, u.context ⇒ ⋀a.constraints
-# <=> ~ (exists system state, ¬(u.context ⇒ ⋀a.constraints))
-# <=> ~ (exists system state, ¬(¬u.context ∨ ⋀a.constraints))
-# <=> ~ (exists system state, u.context ∧ ¬⋀a.constraints)
-# <=> ~ (exists system state, u.context ∧ ⋁{¬P | P ∈ a.constraints}).
+# ∀ system states, u.context ⇒ ⋀a.constraints
+# ⇔ ~ (∃ system state, ¬(u.context ⇒ ⋀a.constraints))
+# ⇔ ~ (∃ system state, ¬(¬u.context ∨ ⋀a.constraints))
+# ⇔ ~ (∃ system state, u.context ∧ ¬⋀a.constraints)
+# ⇔ ~ (∃ system state, u.context ∧ ⋁{¬P | P ∈ a.constraints}).
 
 # I.e., check unsatisfiability of conjunction of UCA context with
 # disjunction of negated constraints.
