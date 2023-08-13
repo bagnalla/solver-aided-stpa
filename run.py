@@ -6,10 +6,6 @@ from control import Action, BinaryExpr, buildTypingCtx, Component, conj, disj, \
 
 from typing import Any, Dict, List, Optional, Tuple
 
-# This file is not typecheckable because yices doesn't provide static
-# type information. We could provide a stub file for the yices
-# definitions we use, I guess.
-
 # Compile expressions to yices expressions.
 def compileExpr(env: Dict, e: Expr):
     match e:
