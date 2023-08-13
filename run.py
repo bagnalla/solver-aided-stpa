@@ -78,12 +78,14 @@ def setupYicesContext(sys: System) -> Tuple[Context,        # Yices context.
 
     return yices_ctx, env, fintype_els
 
-def getActionByName(sys: System, name: str) -> Action:
+def getActionByName(sys: System, component: str, action: str) -> Action:
     for c in sys.components:
-        for a in c.actions:
-            if a.name == name:
-                return a
-    raise Exception('getActionByName: no action found with name %s' % name)
+        if c.name == component:
+            for a in c.actions:
+                if a.name == action:
+                    return a
+    raise Exception('getActionByName: no action found for component %s with name %s'
+                    % (component, action))
 
 # Assert conjunction of all component state invariants:
 # ⋀sys.assumptions and ⋀{c.invariant | c ∈ sys.components}.
@@ -147,7 +149,7 @@ def checkConstraints(yices_ctx: Context,      # Yices context.
         print('Checking %s' % u)
         yices_ctx.push()
         
-        a = getActionByName(sys, u.action)
+        a = getActionByName(sys, u.component, u.action)
 
         if u.type == 'issued':
             yices_ctx.assert_formula(compileExpr(env, conj(a.constraints + [u.context])))
@@ -256,10 +258,12 @@ sys: System = System(name = 'aircraft_brakes_system',
 #   context: aircraft.landing
 
 # Test UCAs.
-ucas: List[UCA] = [UCA(action = 'hit_brakes',
+ucas: List[UCA] = [UCA(component = 'aircraft',
+                       action = 'hit_brakes',
                        type = 'issued',
                        context = neg(NameExpr('wheels', 'weight_on_wheels'))),
-                   UCA(action = 'hit_brakes',
+                   UCA(component = 'aircraft',
+                       action = 'hit_brakes',
                        type = 'not issued',
                        context = NameExpr('aircraft', 'landing'))]
 

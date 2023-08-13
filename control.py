@@ -106,9 +106,10 @@ UCAType = Literal['issued', 'not issued']
 
 @dataclass(frozen=True)
 class UCA:
-    action:  str     # Name of action.
-    type:    UCAType # Type of UCA.
-    context: Expr    # Context in which action is potentially hazardous.
+    component: str     # Name of controller.
+    action:    str     # Name of action.
+    type:      UCAType # Type of UCA.
+    context:   Expr    # Context in which action is potentially hazardous.
 
 # Safety constraints on Actions are Boolean-valued expressions that
 # can refer to fields of Components, (e.g., 'World.runway_status ==

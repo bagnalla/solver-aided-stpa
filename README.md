@@ -78,11 +78,11 @@ environment) is represented by the following:
 
 ```python
 class Component:
-    name:      str                    # Name of component.
-    state:     List[Tuple[str, Type]] # Internal state of component.
-    invariant: Expr                   # Invariant property of internal state.
-    actions:   List[Action]           # Control actions that can be
-                                      # performed by this component.
+    name:      str           # Name of component.
+    state:     List[VarDecl] # Internal state of component.
+    invariant: Expr          # Invariant property of internal state.
+    actions:   List[Action]  # Control actions that can be performed
+                             # by this component.
 ```
 
 The internal state of a component is a list of variables, each with a
@@ -110,9 +110,10 @@ relations between different components.
 ```python
 UCAType = Literal['issued', 'not issued']
 class UCA:
-    action:  str     # Name of action.
-    type:    UCAType # Type of UCA.
-    context: Expr    # Context in which action is potentially hazardous.
+    component: str     # Name of controller.
+    action:    str     # Name of action.
+    type:      UCAType # Type of UCA.
+    context:   Expr    # Context in which action is potentially hazardous.
 ```
 
 Currently only the first two types of UCAs are supported, but I think
@@ -123,15 +124,15 @@ the only ones necessary.
 
 The following is a small example system specified in a hypothetical
 concrete syntax (a parser for this syntax isn't implemented -- the
-system is currently encoded directly in the above data structures
-in the file [run.py](run.py).
+system is currently encoded directly in the above data structures in
+the file [run.py](run.py)).
 
 ```
 system aircraft_brakes_system:
   type DryOrWet: {dry, wet}
   component aircraft:
     var landing: bool
-    actions hit_brakes:
+    action hit_brakes:
       constraint: wheels.weight_on_wheels is true
   component environment:
     var runway_status: DryOrWet
@@ -145,10 +146,10 @@ system aircraft_brakes_system:
 And a couple UCAs:
 
 ```
-UCA hit_brakes:
+UCA aircraft.hit_brakes:
   type: issued
   context: wheels.weight_on_wheels is false
-UCA hit_brakes:
+UCA aircraft.hit_brakes:
   type: not issued
   context: aircraft.landing is true
 ```
