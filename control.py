@@ -5,16 +5,21 @@ from typing import assert_never, cast, Dict, List, Literal, Optional, Tuple
 
 # Type and expression language abstract syntax.
 
-@dataclass(frozen=True)
-class NamedType:
-    name: str
-
-Type = Literal['int', 'bool'] | NamedType
+# @dataclass(frozen=True)
+# class NamedType:
+#     name: str
 
 @dataclass(frozen=True)
-class TypeDecl:
+class FinType:
     name: str
     elements: List[str]
+
+Type = Literal['int', 'bool'] | FinType
+
+# @dataclass(frozen=True)
+# class TypeDecl:
+#     name: str
+#     elements: List[str]
 
 @dataclass(frozen=True)
 class VarDecl:
@@ -91,7 +96,7 @@ class Component:
 @dataclass(frozen=True)
 class System:
     name:         str             # Name of system.
-    types:        List[TypeDecl]  # Type declarations.
+    types:        List[FinType]   # Type declarations.
     components:   List[Component] # A collection of components.
     assumptions:  List[Expr]      # Global system assumptions.
 
@@ -149,7 +154,7 @@ def buildTypingCtx(s: System) -> Dict[str, Type]:
             if el in ctx:
                 raise TypeError("Duplicate FinType element: '%s'" % el)
             else:
-                ctx[el] = NamedType(decl.name)
+                ctx[el] = FinType(decl.name, decl.elements)
     for c in s.components:
         for var in c.state:
             ctx[c.name + '_' + var.name] = var.ty
