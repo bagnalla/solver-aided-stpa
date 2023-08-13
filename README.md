@@ -7,7 +7,7 @@ verification of the actual system behavior. It just provides an aid to
 the STPA analyst who is coming up with controller safety constraints
 based on the high-level control structure and UCAs identified in the
 STPA process. You might call this approach "solver-aided controller
-constraint specification" or something similar.
+constraint specification".
 
 # The basic idea
 
