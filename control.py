@@ -1,25 +1,53 @@
+# Type and expression language abstract syntax.
+
 from __future__ import annotations
 from dataclasses import dataclass
 from functools import reduce
-from typing import assert_never, cast, Dict, List, Literal, Optional, Tuple
+from typing import List, Literal, Optional
 
-# Type and expression language abstract syntax.
+# # Source metadata. NOT USED YET
+# @dataclass
+# class Meta:
+#     start_line: int
+#     end_line: int
+#     start_column: int
+#     end_column: int
 
-# @dataclass(frozen=True)
-# class NamedType:
-#     name: str
+# def metaPretty(m: Meta) -> str:
+#     return 'line %s, column %s' % (m.start_line, m.start_column)
 
 @dataclass(frozen=True)
-class FinType:
+class Ident:
+    qualifier: Optional[Ident]
     name: str
-    elements: List[str]
+    
+    def __str__(self) -> str:
+        if self.qualifier is None:
+            return self.name
+        else:
+            return str(self.qualifier) + '.' + self.name
+    
+    def toList(self) -> List[str]:
+        if self.qualifier:
+            return self.qualifier.toList() + [self.name]
+        else:
+            return [self.name]
+    
+    @staticmethod
+    def ofList(l: List[str]) -> Ident:
+        if l:
+            if len(l) == 1:
+                return Ident(None, l[0])
+            else:
+                return Ident(Ident.ofList(l[:-1]), l[-1])
+        else:
+            raise Exception('Ident.ofList: empty list')
+    
+    @staticmethod
+    def ofString(s: str) -> Ident:
+        return Ident.ofList(s.split('.'))
 
-Type = Literal['int', 'bool'] | FinType
-
-# @dataclass(frozen=True)
-# class TypeDecl:
-#     name: str
-#     elements: List[str]
+Type = Literal['int', 'bool'] | Ident
 
 @dataclass(frozen=True)
 class VarDecl:
@@ -27,25 +55,26 @@ class VarDecl:
     ty: Type
 
 @dataclass(frozen=True)
-class IntLiteral:
-    i: int
-
-LiteralExpr = IntLiteral | Literal['true', 'false']
+class FinTypeDecl:
+    name: str
+    elements: List[str]
 
 @dataclass(frozen=True)
-class NameExpr:
-    qualifier: Optional[str]
-    name: str
-    def __str__(self) -> str:
-        if self.qualifier is None:
-            return self.name
-        else:
-            return self.qualifier + '_' + self.name
+class IntLiteral:
+    i: int
+    
+    def __str(self) -> str:
+        return str(self.i)
+
+LiteralExpr = IntLiteral | Literal['true', 'false']
 
 @dataclass(frozen=True)
 class UnaryExpr:
     op: Literal['NOT']
     e: Expr
+    
+    def __str__(self) -> str:
+        return '%s %s' % (self.op, self.e)
 
 @dataclass(frozen=True)
 class BinaryExpr:
@@ -53,8 +82,14 @@ class BinaryExpr:
                 'PLUS', 'MINUS', 'MULT', 'DIV', 'WHEN']
     e1: Expr
     e2: Expr
+    
+    def __str__(self) -> str:
+        if self.op == 'WHEN':
+            return 'WHEN %s, %s' % (self.e1, self.e2)
+        else:
+            return '%s %s %s' % (self.e1, self.op, self.e2)
 
-Expr = NameExpr | LiteralExpr | UnaryExpr | BinaryExpr
+Expr = Ident | LiteralExpr | UnaryExpr | BinaryExpr
 
 # Helper constructors for expressions.
 
@@ -86,19 +121,14 @@ class Action:
     constraints: List[Expr] # Safety constraints on action.
 
 @dataclass(frozen=True)
-class Component:
-    name:      str           # Name of component.
-    state:     List[VarDecl] # Internal state of component.
-    invariant: Expr          # Invariant property of internal state.
-    actions:   List[Action]  # Control actions that can be performed
-                             # by this component.
-
-@dataclass(frozen=True)
 class System:
-    name:         str             # Name of system.
-    types:        List[FinType]   # Type declarations.
-    components:   List[Component] # A collection of components.
-    assumptions:  List[Expr]      # Global system assumptions.
+    name:       str               # Name of system.
+    types:      List[FinTypeDecl] # Type declarations.
+    vars:       List[VarDecl]     # Internal state of system.
+    invariants: List[Expr]        # Invariant properties of internal state.
+    actions:    List[Action]      # Control actions that can be
+                                  # performed by this system/component.
+    components: List[System]      # Subsystems / components.
 
 # Just the first two types for now (I believe the other two can be
 # simulated via these two anyway).
@@ -106,10 +136,12 @@ UCAType = Literal['issued', 'not issued']
 
 @dataclass(frozen=True)
 class UCA:
-    component: str     # Name of controller.
-    action:    str     # Name of action.
-    type:      UCAType # Type of UCA.
-    context:   Expr    # Context in which action is potentially hazardous.
+    action:  Ident   # Name of action.
+    type:    UCAType # Type of UCA.
+    context: Expr    # Context in which action is potentially hazardous.
+    
+    def __str__(self) -> str:
+        return 'UCA(action=%s, type=%s, context={%s})' % (self.action, self.type, self.context)
 
 # Safety constraints on Actions are Boolean-valued expressions that
 # can refer to fields of Components, (e.g., 'World.runway_status ==
@@ -140,89 +172,3 @@ class UCA:
 # that relates Aircraft.flight_status to some other variables, so that
 # the constraint 'Aircraft.flight_status != TAKEOFF' implies
 # constraints on those other variables as well).
-
-# Typechecking systems (a well-typed system can be checked by the
-# solver without the solver throwing an error).
-
-@dataclass(frozen=True)
-class TypeError(Exception):
-    msg: str
-
-def buildTypingCtx(s: System) -> Dict[str, Type]:
-    ctx: Dict[str, Type] = {}
-    for decl in s.types:
-        for el in decl.elements:
-            if el in ctx:
-                raise TypeError("Duplicate FinType element: '%s'" % el)
-            else:
-                ctx[el] = FinType(decl.name, decl.elements)
-    for c in s.components:
-        for var in c.state:
-            ctx[c.name + '_' + var.name] = var.ty
-    return ctx
-
-def tycheckExpr(e: Expr, ctx: Dict[str, Type]) -> Type:
-    match e:
-        case IntLiteral():
-            return 'int'
-        case 'true' | 'false':
-            return 'bool'
-        case NameExpr():
-            if str(e) in ctx:
-                return ctx[str(e)]
-            else:
-                raise TypeError("Unknown name '%s'" % e)
-        case UnaryExpr():
-            if e.op == 'NOT':
-                if tycheckExpr(e.e, ctx) == 'bool':
-                    return 'bool'
-                else:
-                    raise TypeError(msg = 'Expected type bool')
-        case BinaryExpr():
-            ty1, ty2 = tycheckExpr(e.e1, ctx), tycheckExpr(e.e2, ctx)
-            if type(ty1) != type(ty2):
-                raise TypeError('Arguments to binary expression should have the same type')
-            if e.op == 'EQ':
-                return 'bool'
-            elif e.op in ['LT', 'LE', 'GT', 'GE']:
-                if ty1 == 'int':
-                    return 'bool'
-                else:
-                    raise TypeError('Expected type int')
-            elif e.op in ['PLUS', 'MINUS', 'MULT', 'DIV']:
-                if ty1 == 'int':
-                    return 'int'
-                else:
-                    raise TypeError('Expected type int')
-            else: # e.op in ['AND', 'OR', 'WHEN']:
-                if ty1 == 'bool':
-                    return 'bool'
-                else:
-                    raise TypeError('Expected type bool')
-        case _:
-            assert_never(e)
-
-def tycheckAction(a: Action, ctx: Dict[str, Type]):
-    for c in a.constraints:
-        if tycheckExpr(c, ctx) != 'bool':
-            raise TypeError('constraint must have type bool')
-
-def tycheckComponent(c: Component, ctx: Dict[str, Type]):
-    if tycheckExpr(c.invariant, ctx) != 'bool':
-        raise TypeError('invariant must have type bool')
-    for a in c.actions:
-        tycheckAction(a, ctx)
-
-def tycheckSystem(s: System, ctx: Dict[str, Type]):
-    for c in s.components:
-        tycheckComponent(c, ctx)
-    for e in s.assumptions:
-        if tycheckExpr(e, ctx) != 'bool':
-            raise TypeError('system assumption must have type bool')
-
-def tycheckUCA(u: UCA, ctx: Dict[str, Type]):
-    # Ensuring that the action named in the UCA is a known control
-    # action can happen later when doing SMT stuff, but it could be
-    # good to check for it here as well.
-    if tycheckExpr(u.context, ctx) != 'bool':
-        raise TypeError('context expression of UCA must have type bool')    

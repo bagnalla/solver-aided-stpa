@@ -78,11 +78,11 @@ environment) is represented by the following:
 
 ```python
 class Component:
-    name:      str           # Name of component.
-    state:     List[VarDecl] # Internal state of component.
-    invariant: Expr          # Invariant property of internal state.
-    actions:   List[Action]  # Control actions that can be performed
-                             # by this component.
+    name:       str           # Name of component.
+    state:      List[VarDecl] # Internal state of component.
+    invariants: List[Expr]    # Invariant properties of internal state.
+    actions:    List[Action]  # Control actions that can be performed
+                              # by this component.
 ```
 
 The internal state of a component is a list of variables, each with a
@@ -95,7 +95,6 @@ related in some way).
 
 ```python
 class System:
-    name:         str             # Name of system.
     types:        List[TypeDecl]  # Type declarations.
     components:   List[Component] # A collection of components.
     assumptions:  List[Expr]      # Global system assumptions.
@@ -155,8 +154,8 @@ UCA aircraft.hit_brakes:
 ```
 
 Running the verifier on the above system and UCAs (run `make` to
-reproduce) produces the following output (see [run.py](run.py) for the
-code that compiles expressions and invokes the yices solver):
+reproduce) produces the following output (see [solver.py](solver.py)
+for the code that compiles expressions and invokes the yices solver):
 
 ```
 Checking UCA(action='hit_brakes', type='issued', context=UnaryExpr(op='NOT', e=NameExpr(qualifier='wheels', name='weight_on_wheels')))
