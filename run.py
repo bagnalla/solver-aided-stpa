@@ -2,7 +2,7 @@ from control import Action, conj, eq, FinTypeDecl, Ident, neg, System, Type, UCA
 # from parser import parseBytes
 from solver import assertInvariants, checkConstraints, genScenarios, setupYicesContext
 from tycheck import buildTypingCtx, tycheckSystem, tycheckUCA, TypeError
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 from yices import Config, Context, Model, Status, Types, Terms
 
 # system aircraft_brakes_system:
@@ -73,7 +73,7 @@ ucas: List[UCA] = [UCA(action = Ident.ofList(['system', 'aircraft', 'hit_brakes'
 
 # Check that the system is well-formed.
 try:
-    ctx: Dict[Ident, Type] = buildTypingCtx(sys)
+    ctx: Mapping[Ident, Type] = buildTypingCtx(sys)
     tycheckSystem(sys, ctx)
     for u in ucas:
         tycheckUCA(u, ctx)

@@ -1,7 +1,7 @@
 from control import Action, BinaryExpr, conj, disj, eq, Expr, FinTypeDecl, \
     Ident, IntLiteral, neg, System, Type, UCA, UnaryExpr
 from dataclasses import dataclass
-from typing import Dict, List, Mapping, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 from yices import Config, Context, Model, Status, Types, Terms
 import yices # So we can refer to yices.Type.
 Term = int # Make typechecker happy.
@@ -11,7 +11,7 @@ def printEnv(env: Mapping[Ident, Term]) -> None:
         print('%s: %s' % (name, tm))
 
 # Compile expressions to yices expressions.
-def compileExpr(env: Dict[Ident, Term], e: Expr) -> Term:
+def compileExpr(env: Mapping[Ident, Term], e: Expr) -> Term:
     match e:
         case IntLiteral():
         # case typing.int:
@@ -182,12 +182,12 @@ class Scenario:
     def items(self) -> List[Tuple[Ident, bool | int | Ident]]:
         return list(self.dict.items())
 
-def scenarioFromModel(yices_ctx: Context,                    # Yices context.
-                      ctx: Dict[Ident, Type],                # Typing context.
-                      env: Dict[Ident, Term],                # Map variables to yices terms.
-                      fintype_els: Dict[Ident, List[Ident]], # Names of FinType elements.
-                      model: Model                           # Model produced by yices.
-                      ) -> Scenario:                         # Return scenario derived from model.
+def scenarioFromModel(yices_ctx: Context,                       # Yices context.
+                      ctx: Mapping[Ident, Type],                # Typing context.
+                      env: Mapping[Ident, Term],                # Map variables to yices terms.
+                      fintype_els: Mapping[Ident, List[Ident]], # Names of FinType elements.
+                      model: Model                              # Model produced by yices.
+                      ) -> Scenario:                            # Scenario derived from model.
     defined_terms = model.collect_defined_terms()
     scenario: Scenario = Scenario({})
     for name, term in env.items():
@@ -225,13 +225,13 @@ def scenarioFromModel(yices_ctx: Context,                    # Yices context.
 # I.e., check unsatisfiability of conjunction of UCA context with
 # disjunction of negated constraints.
 
-def checkConstraints(yices_ctx: Context,                    # Yices context.
-                     ctx: Dict[Ident, Type],                # Typing context.
-                     env: Dict[Ident, Term],                # Map variables to yices terms.
-                     fintype_els: Dict[Ident, List[Ident]], # Names of FinType elements.
-                     sys: System,                           # System to check.
-                     ucas: List[UCA]                        # UCAs to check.
-                     ) -> Optional[Scenario]:               # Return counterexample if found.
+def checkConstraints(yices_ctx: Context,                       # Yices context.
+                     ctx: Mapping[Ident, Type],                # Typing context.
+                     env: Mapping[Ident, Term],                # Map variables to yices terms.
+                     fintype_els: Mapping[Ident, List[Ident]], # Names of FinType elements.
+                     sys: System,                              # System to check.
+                     ucas: Sequence[UCA]                       # UCAs to check.
+                     ) -> Optional[Scenario]:                  # Return counterexample if found.
     for u in ucas:
         print('Checking %s' % u)
         yices_ctx.push()
@@ -258,12 +258,12 @@ def checkConstraints(yices_ctx: Context,                    # Yices context.
 # def: scenarioString
 
 # Generate scenarios compatible with action constraints.
-def genScenarios(yices_ctx: Context,             # Yices context.
-                 ctx: Dict[Ident, Type],           # Typing context.
-                 env: Dict[Ident, Term],           # Map variables to yices terms.
-                 fintype_els: Dict[Ident, List[Ident]],         # Names of FinType elements.
-                 sys: System                     # System to generate scenarios for.
-                 ) -> Dict[str, List[Scenario]]: # Map action names to # lists of scenarios
+def genScenarios(yices_ctx: Context,                       # Yices context.
+                 ctx: Mapping[Ident, Type],                # Typing context.
+                 env: Mapping[Ident, Term],                # Map variables to yices terms.
+                 fintype_els: Mapping[Ident, List[Ident]], # Names of FinType elements.
+                 sys: System                               # System to generate scenarios for.
+                 ) -> Dict[str, List[Scenario]]:           # Map action names to lists of scenarios.
     
     # For each action, assert conjunction of its constraints and
     # enumerate models (assignments of variables that satisfy all the

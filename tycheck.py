@@ -16,17 +16,6 @@ class TypeError(Exception):
 #     tbl: Dict[str, T]
 #     children: Dict[str, Symtab]
 
-# TODO: should be able to make typing context a flat dict over Idents
-# the way we wanted. Need a renamer pass to fill in missing qualifiers
-# in identifiers, and it can handle any fancy logic in resolving the
-# qualifiers (e..g, wrt. 'import' or 'use' statements and that sort of
-# thing). After renaming, all identifiers will be fully qualified. For
-# now, we can just assume that all identifiers are fully qualified.
-
-# This function mutates the context argument (if one is given), and
-# also returns it. Normally an outside call to this function will omit
-# the ctx argument.
-
 # QUESTION: Do we want to enforce lexical scoping rules? The current
 # setup (using a flat dictionary) allows expressions to refer to
 # variables/actions of any component in the system regardless of their
@@ -37,49 +26,46 @@ class TypeError(Exception):
 # -- but I was thinking that it might be easier with a nested symbol
 # table representation for contexts/environments.
 
-def buildTypingCtx(sys:    System,                 # Current system.
-                   parent: Optional[Ident] = None, # Parent system.
-                   ctx:    Dict[Ident, Type] = {}, # Typing context so far.
-                   types:  List[Type] = []         # Declared types so far.
-                   ) ->    Dict[Ident, Type]:      # Return updated context.
-    # Qualifier for current system.
-    qualifier: Ident = Ident(parent, sys.name)
+def buildTypingCtx(sys: System) -> Mapping[Ident, Type]:
+    ctx: Dict[Ident, Type] = {} # Typing context.
+    types: List[Type] = []      # Declared types.
     
-    # Type declarations.
-    seen: List[str] = []
-    for tydecl in sys.types:
-        # if tydecl.name in types:
-        #     raise TypeError("Duplicate FinType: '%s'" % tydecl.name)
-        # else:
-            # types[tydecl.name] = tydecl
-        types.append(Ident(qualifier, tydecl.name))
-        for el in tydecl.elements:
-            if Ident(qualifier, el) in ctx:
-                raise TypeError("Duplicate FinType element: '%s'" % el)
+    def go(s: System, parent: Optional[Ident]) -> None:
+        # Qualifier for current system.
+        qualifier: Ident = Ident(parent, s.name)
+    
+        # Type declarations.
+        seen: List[str] = []
+        for tydecl in s.types:
+            types.append(Ident(qualifier, tydecl.name))
+            for el in tydecl.elements:
+                if Ident(qualifier, el) in ctx:
+                    raise TypeError("Duplicate FinType element: '%s'" % el)
+                else:
+                    ctx[Ident(qualifier, el)] = Ident(qualifier, tydecl.name)
+
+        # State variables. Keep using the same 'seen' list to prevent
+        # reusing fintype element names as variables.
+        for vardecl in s.vars:
+            if vardecl.name in seen:
+                raise TypeError("Duplicate variable: '%s'" % vardecl.name)
+            elif isinstance(vardecl.ty, Ident) and vardecl.ty not in types:
+                raise TypeError("Unknown type: '%s'" % vardecl.ty)
             else:
-                ctx[Ident(qualifier, el)] = Ident(qualifier, tydecl.name)
+                seen.append(vardecl.name)
+            ctx[Ident(qualifier, vardecl.name)] = vardecl.ty
 
-    # State variables. Keep using the same 'seen' list to prevent
-    # reusing fintype element names as variables.
-    for vardecl in sys.vars:
-        if vardecl.name in seen:
-            raise TypeError("Duplicate variable: '%s'" % vardecl.name)
-        elif isinstance(vardecl.ty, Ident) and vardecl.ty not in types:
-            raise TypeError("Unknown type: '%s'" % vardecl.ty)
-        else:
-            seen.append(vardecl.name)
-        ctx[Ident(qualifier, vardecl.name)] = vardecl.ty
+        # TODO: Actions? Boolean variable for each action so they can be
+        # referred to in expressions. Or perhaps a special type for
+        # SAFE/UNSAFE instead of Boolean.
+        for a in s.actions:
+            pass
 
-    # TODO: Actions? Boolean variable for each action so they can be
-    # referred to in expressions. Or perhaps a special type for
-    # SAFE/UNSAFE instead of Boolean.
-    for a in sys.actions:
-        pass
+        # Recurse on subsystems.
+        for c in s.components:
+            go(c, qualifier)
 
-    # Recurse on subsystems.
-    for c in sys.components:
-        buildTypingCtx(c, qualifier, ctx)
-
+    go(sys, None)
     return ctx
 
 def printCtx(ctx: Mapping[Ident, Type]) -> None:
@@ -96,7 +82,6 @@ def tycheckExpr(e: Expr, ctx: Mapping[Ident, Type]) -> Type:
             if e in ctx:
                 return ctx[e]
             else:
-                # printCtx(ctx)
                 raise TypeError("Unknown name '%s'" % e)
         case UnaryExpr():
             if e.op == 'NOT':
