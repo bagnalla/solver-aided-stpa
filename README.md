@@ -85,34 +85,53 @@ class Component:
                               # by this component.
 ```
 
-The internal state of a component is a list of variables, each with a
-specified type (currently 'bool', 'int', or an enum type). The
-invariant is a property of the internal state that is expected to
-always hold (for example, two variables of the state might always be
-related in some way).
-
 ## Systems
+
+A system is encoded by the following data structure:
 
 ```python
 class System:
-    types:        List[TypeDecl]  # Type declarations.
-    components:   List[Component] # A collection of components.
-    assumptions:  List[Expr]      # Global system assumptions.
+    name:       str               # Name of system.
+    types:      List[FinTypeDecl] # Type declarations.
+    vars:       List[VarDecl]     # Internal state of system.
+    invariants: List[Expr]        # Invariant properties of internal
+                                  # state and/or components.
+    actions:    List[Action]      # Control actions that can be
+                                  # performed by this system/component.
+    components: List[System]      # Subsystems / components.
 ```
 
-The type declarations are for declaring enum types. The assumptions
-are like component state invariants but are global so they can express
-relations between different components.
+
+The 'internal state' of a system is a list of variables, each with a
+specified type (currently 'bool', 'int', or an enum type). The type
+declarations are for declaring enum types. The invariants are
+properties of the internal state and/or subsystems that is expected to
+always hold (for example, two variables of the state might always be
+related in some way). The 'components' are subsystems that can be
+nested to arbitrary depth (the subsystems may themselves be composed
+of subsystems and so on).
+
+### Identifiers
+
+```python
+class Ident:
+    qualifier: Optional[Ident]
+    name: str
+```
+
+An `Ident` is a unique identifier for a variable, action, or
+system/component. For example, the identifier
+`brakes_system.aircraft.hit_brakes` could denote the `hit_brakes`
+action of component `aircraft` of system `brakes_system`.
 
 ## UCAs
 
 ```python
 UCAType = Literal['issued', 'not issued']
 class UCA:
-    component: str     # Name of controller.
-    action:    str     # Name of action.
-    type:      UCAType # Type of UCA.
-    context:   Expr    # Context in which action is potentially hazardous.
+    action:  Ident   # Name of action.
+    type:    UCAType # Type of UCA.
+    context: Expr    # Context in which action is potentially hazardous.
 ```
 
 Currently only the first two types of UCAs are supported, but I think
