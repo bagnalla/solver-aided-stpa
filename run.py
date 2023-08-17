@@ -37,12 +37,12 @@ sys: System = System(name = 'system',
                              components = [],
                              actions = [Action(name = 'hit_brakes',
                                                constraints =
-                                               [Ident.ofList(['system', 'aircraft', 'landing'])])],
+                                               [Ident.ofStr('system.aircraft.landing')])],
                              invariants = []),
                       System(name = 'environment',
                              types = [],
                              vars = [VarDecl('runway_status',
-                                             Ident.ofList(['system', 'DryOrWet']))],
+                                             Ident.ofStr('system.DryOrWet'))],
                              components = [],
                              actions = [],
                              invariants = ['true']),
@@ -54,10 +54,10 @@ sys: System = System(name = 'system',
                              invariants = [])],
                      
                      invariants =
-                     [when(conj([Ident.ofList(['system', 'aircraft', 'landing']),
-                                 eq(Ident.ofList(['system', 'environment', 'runway_status']),
-                                    Ident.ofList(['system', 'dry']))]),
-                           Ident.ofList(['system', 'wheels', 'weight_on_wheels']))])
+                     [when(conj([Ident.ofStr('system.aircraft.landing'),
+                                 eq(Ident.ofStr('system.environment.runway_status'),
+                                    Ident.ofStr('system.dry'))]),
+                           Ident.ofStr('system.wheels.weight_on_wheels'))])
 
 # UCA hit_brakes:
 #   typ: issued

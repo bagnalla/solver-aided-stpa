@@ -44,7 +44,7 @@ class Ident:
             raise Exception('Ident.ofList: empty list')
     
     @staticmethod
-    def ofString(s: str) -> Ident:
+    def ofStr(s: str) -> Ident:
         return Ident.ofList(s.split('.'))
 
 Type = Literal['int', 'bool'] | Ident
