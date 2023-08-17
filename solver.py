@@ -1,3 +1,5 @@
+# Compiling systems to SMT and invoking the solver (currently yices2).
+
 from control import Action, BinaryExpr, conj, disj, eq, Expr, FinTypeDecl, \
     Ident, IntLiteral, neg, System, Type, UCA, UnaryExpr
 from dataclasses import dataclass
@@ -47,51 +49,9 @@ def compileExpr(env: Mapping[Ident, Term], e: Expr) -> Term:
         case _:
             raise Exception('compileExpr %s' % e)
 
-# def setupYicesContext(sys: System,
-#                       parent: Optional[Ident] = None,
-#                       yices_ctx: Optional[Context] = None,
-#                       env: Dict[Ident, Term] = {},
-#                       types: Dict[Ident, Type] = {},
-#                       fintype_els: Dict[Ident, List[Ident]] = {}
-#                       ) -> Tuple[Context,           # Yices context.
-#                                  Dict[Ident, Term], # Yices term environment.
-#                                  Dict[Ident, Type], # Yices type environment.
-#                                  Dict[Ident, List[Ident]]]:      # FinType elements.
-#     bool_t = Types.bool_type()
-#     int_t = Types.int_type()
-
-#     if not yices_ctx:
-#         yices_ctx = Context(Config())
-
-#     # Declare enum types.
-#     for tydecl in sys.types:
-#         name: Ident = Ident(parent, tydecl.name)
-#         elements: List[Ident] = [Ident(parent, el) for el in tydecl.elements]
-#         ty, terms = Types.declare_enum(str(name), [str(el) for el in elements])
-#         types[name] = ty
-#         fintype_els[name] = elements
-#         for el, tm in zip(elements, terms):
-#             env[el] = tm
-
-#     # Declare state variables.
-#     for vardecl in sys.vars:
-#         name = Ident(parent, vardecl.name)
-#         match vardecl.ty:
-#             case 'bool':
-#                 env[name] = Terms.new_uninterpreted_term(bool_t, str(name))
-#             case 'int':
-#                 env[name] = Terms.new_uninterpreted_term(int_t, str(name))
-#             case Ident():
-#                 env[name] = Terms.new_uninterpreted_term(types[vardecl.ty], str(name))
-
-#     # TODO actions.
-                
-#     # Recurse on subsystems.
-#     for c in sys.components:
-#         setupYicesContext(c, Ident(parent, sys.name), yices_ctx, env, types, fintype_els)
-
-#     return yices_ctx, env, types, fintype_els
-
+# Before asserting any formulas, we first set up the yices context by
+# traversing the system and declaring all types and terms. Returns
+# dictionaries mapping identifiers to their corresponding yices terms.
 def setupYicesContext(sys: System,
                       ) -> Tuple[Context,                   # Yices context.
                                  Dict[Ident, Term],         # Yices term environment.
@@ -137,6 +97,8 @@ def setupYicesContext(sys: System,
     go(sys, None)
     return yices_ctx, env, fintype_els
 
+# If this ends up being used a lot we can pre-build a dictionary
+# (mapping identifiers to actions) to make it more efficient.
 def getActionByName(sys: System, name: Ident) -> Action:
     def go(s: System, names: List[str]) -> Action:
         if len(names) > 1:
@@ -161,8 +123,8 @@ def getActionByName(sys: System, name: Ident) -> Action:
             raise Exception("getActionByName: impossible. name: '%s'" % name)
     return go(sys, name.toList())
 
-# Assert conjunction of all component state invariants:
-# ⋀sys.assumptions and ⋀{c.invariant | c ∈ sys.components}.
+# Assert conjunction of all invariants:
+# conj_inv(sys) ≜ ⋀sys.invariants ∧ ⋀{conj_inv(c) | c ∈ sys.components}.
 def assertInvariants(yices_ctx: Context, env: Dict[Ident, Term], sys: System) -> None:
     yices_ctx.assert_formulas([compileExpr(env, e) for e in sys.invariants])
     for c in sys.components:
@@ -170,6 +132,8 @@ def assertInvariants(yices_ctx: Context, env: Dict[Ident, Term], sys: System) ->
     if yices_ctx.check_context() == Status.UNSAT:
         raise Exception('System assumptions are impossible.')
 
+# A scenario is a mapping from identifiers to values. A value is (for
+# now) either a bool, int, or string denoting a fintype element.
 @dataclass
 class Scenario:
     dict: Dict[Ident, bool | int | Ident]
@@ -182,6 +146,7 @@ class Scenario:
     def items(self) -> List[Tuple[Ident, bool | int | Ident]]:
         return list(self.dict.items())
 
+# Convert a yices model to a Scenario.
 def scenarioFromModel(yices_ctx: Context,                       # Yices context.
                       ctx: Mapping[Ident, Type],                # Typing context.
                       env: Mapping[Ident, Term],                # Map variables to yices terms.
@@ -255,8 +220,6 @@ def checkConstraints(yices_ctx: Context,                       # Yices context.
 
     return None
 
-# def: scenarioString
-
 # Generate scenarios compatible with action constraints.
 def genScenarios(yices_ctx: Context,                       # Yices context.
                  ctx: Mapping[Ident, Type],                # Typing context.
@@ -274,7 +237,6 @@ def genScenarios(yices_ctx: Context,                       # Yices context.
     scenarios: Dict[str, List[Scenario]] = {}
     for c in sys.components:
         for a in c.actions:
-            # print('\nGenerating scenarios for action %s' % a)
             scenarios[a.name] = []
             yices_ctx.push()
             yices_ctx.assert_formulas([compileExpr(env, e) for e in a.constraints])
@@ -282,7 +244,6 @@ def genScenarios(yices_ctx: Context,                       # Yices context.
                 model = Model.from_context(yices_ctx, 1)
                 scenario = scenarioFromModel(yices_ctx, ctx, env, fintype_els, model)
                 scenarios[a.name].append(scenario)
-                # print(scenario)
                 es: List[Expr] = []
                 for name, val in scenario.items():
                     if isinstance(val, bool):

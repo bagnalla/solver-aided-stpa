@@ -1,4 +1,4 @@
-# Type and expression language abstract syntax.
+# Type and expression language abstract syntax, system data structures.
 
 from __future__ import annotations
 from dataclasses import dataclass

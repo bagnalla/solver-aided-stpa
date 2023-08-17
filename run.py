@@ -1,3 +1,5 @@
+# Test tool on example system.
+
 from control import Action, conj, eq, FinTypeDecl, Ident, neg, System, Type, UCA, VarDecl, when
 # from parser import parseBytes
 from solver import assertInvariants, checkConstraints, genScenarios, setupYicesContext
@@ -19,11 +21,12 @@ from yices import Config, Context, Model, Status, Types, Terms
 #      when aircraft.landing = true and environment.runway_status = dry,
 #        wheels.weight_on_wheels = true
 
-dryOrWet = FinTypeDecl(name = 'DryOrWet', elements = ['dry', 'wet'])
+# NOTE: The above comment might be slightly out of sync with the
+# actual system below.
 
 # Test system.
 sys: System = System(name = 'system',
-                     types = [dryOrWet],
+                     types = [FinTypeDecl(name = 'DryOrWet', elements = ['dry', 'wet'])],
                      vars = [],
                      actions = [],
                      
