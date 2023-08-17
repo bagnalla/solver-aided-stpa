@@ -125,7 +125,8 @@ class System:
     name:       str               # Name of system.
     types:      List[FinTypeDecl] # Type declarations.
     vars:       List[VarDecl]     # Internal state of system.
-    invariants: List[Expr]        # Invariant properties of internal state.
+    invariants: List[Expr]        # Invariant properties of internal
+                                  # state and/or components.
     actions:    List[Action]      # Control actions that can be
                                   # performed by this system/component.
     components: List[System]      # Subsystems / components.

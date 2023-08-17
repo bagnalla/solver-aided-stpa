@@ -70,21 +70,6 @@ class Action:
     constraints: List[Expr] # Safety constraints on action.
 ```
 
-## Components
-
-A component (perhaps should be called 'Entity' or something since it's
-used to represent all parts of the system including things like the
-environment) is represented by the following:
-
-```python
-class Component:
-    name:       str           # Name of component.
-    state:      List[VarDecl] # Internal state of component.
-    invariants: List[Expr]    # Invariant properties of internal state.
-    actions:    List[Action]  # Control actions that can be performed
-                              # by this component.
-```
-
 ## Systems
 
 A system is encoded by the following data structure:

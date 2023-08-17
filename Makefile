@@ -1,4 +1,4 @@
-default: parser
+default:
 	mypy --strict control.py parser.py solver.py run.py tycheck.py && python3 run.py
 
 parser: tree-sitter-stpa/grammar.js
