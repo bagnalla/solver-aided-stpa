@@ -91,25 +91,67 @@ class BinaryExpr:
 
 Expr = Ident | LiteralExpr | UnaryExpr | BinaryExpr
 
-# Helper constructors for expressions.
+### Helper constructors for expressions.
 
 # Unary negation.
 def neg(e: Expr) -> Expr:
     return UnaryExpr(op = 'NOT', e = e)
 
+# Binary conjunction ('and' is a reserved keyword in Python so we use
+# 'land' instead to stand for "logical AND").
+def land(e1: Expr, e2: Expr) -> Expr:
+    return BinaryExpr(op = 'AND', e1 = e1, e2 = e2)
+
 # Big conjunction of list of expressions.
 def conj(es: List[Expr]) -> Expr:
-    return reduce(lambda a, b: BinaryExpr(op = 'AND', e1 = a, e2 = b), es, 'true')
+    return reduce(land, es, 'true')
+
+# Binary disjunction ('or' is a reserved keyword in Python so we use
+# 'lor' instead to stand for "logical OR").
+def lor(e1: Expr, e2: Expr) -> Expr:
+    return BinaryExpr(op = 'OR', e1 = e1, e2 = e2)
 
 # Big disjunction of list of expressions.
 def disj(es: List[Expr]) -> Expr:
-    return reduce(lambda a, b: BinaryExpr(op = 'OR', e1 = a, e2 = b), es, 'false')
+    return reduce(lor, es, 'false')
+
+# Less-than comparison.
+def lt(e1: Expr, e2: Expr) -> Expr:
+    return BinaryExpr(op = 'LT', e1 = e1, e2 = e2)
+
+# Less-than-or-equal comparison.
+def le(e1: Expr, e2: Expr) -> Expr:
+    return BinaryExpr(op = 'LE', e1 = e1, e2 = e2)
+
+# Greater-than comparison.
+def gt(e1: Expr, e2: Expr) -> Expr:
+    return BinaryExpr(op = 'GT', e1 = e1, e2 = e2)
+
+# Greater-than-or-equal comparison.
+def ge(e1: Expr, e2: Expr) -> Expr:
+    return BinaryExpr(op = 'GE', e1 = e1, e2 = e2)
 
 # Equality comparison.
 def eq(e1: Expr, e2: Expr) -> Expr:
     return BinaryExpr(op = 'EQ', e1 = e1, e2 = e2)
 
-# Implication.
+# Integer addition.
+def plus(e1: Expr, e2: Expr) -> Expr:
+    return BinaryExpr(op = 'PLUS', e1 = e1, e2 = e2)
+
+# Integer subtraction.
+def minus(e1: Expr, e2: Expr) -> Expr:
+    return BinaryExpr(op = 'MINUS', e1 = e1, e2 = e2)
+
+# Integer multiplication.
+def mult(e1: Expr, e2: Expr) -> Expr:
+    return BinaryExpr(op = 'MULT', e1 = e1, e2 = e2)
+
+# Integer division.
+def div(e1: Expr, e2: Expr) -> Expr:
+    return BinaryExpr(op = 'DIV', e1 = e1, e2 = e2)
+
+# Logical implication.
 def when(e1: Expr, e2: Expr) -> Expr:
     return BinaryExpr(op = 'WHEN', e1 = e1, e2 = e2)
 
