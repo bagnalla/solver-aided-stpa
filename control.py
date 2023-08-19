@@ -155,6 +155,15 @@ def div(e1: Expr, e2: Expr) -> Expr:
 def when(e1: Expr, e2: Expr) -> Expr:
     return BinaryExpr(op = 'WHEN', e1 = e1, e2 = e2)
 
+safe: Expr = Ident(None, 'SAFE')
+unsafe: Expr = Ident(None, 'UNSAFE')
+
+def is_safe(e: Expr) -> Expr:
+    return eq(e, safe)
+
+def is_unsafe(e: Expr) -> Expr:
+    return eq(e, unsafe)
+
 # System data structures.
 
 @dataclass(frozen=True)

@@ -1,7 +1,7 @@
 # Compiling systems to SMT and invoking the solver (currently yices2).
 
 from control import Action, BinaryExpr, conj, disj, eq, Expr, FinTypeDecl, \
-    Ident, IntLiteral, neg, System, Type, UCA, UnaryExpr
+    Ident, IntLiteral, is_safe, is_unsafe, land, neg, System, Type, UCA, UnaryExpr
 from dataclasses import dataclass
 from typing import assert_never, Dict, List, Mapping, Optional, Sequence, Tuple
 from yices import Config, Context, Model, Status, Types, Terms
@@ -173,7 +173,8 @@ def scenarioFromModel(yices_ctx: Context,                       # Yices context.
     defined_terms = model.collect_defined_terms()
     scenario: Scenario = Scenario({})
     for name, term in env.items():
-        if name not in fintype_els and term in defined_terms:
+        if name not in fintype_els and ctx[name] != Ident(None, 'action') \
+           and term in defined_terms:
             ty: Type = ctx[name]
             match ty:
                 case 'bool':
@@ -220,11 +221,17 @@ def checkConstraints(yices_ctx: Context,                       # Yices context.
         
         a = getActionByName(sys, u.action)
 
+        # if u.type == 'issued':
+        #     yices_ctx.assert_formula(compileExpr(env, conj(a.constraints + [u.context])))
+        # else: # u.type == 'not_issued'
+        #     yices_ctx.assert_formula(
+        #         compileExpr(env, conj([u.context, disj([neg(e) for e in a.constraints])])))
+
+        # This should be equivalent to the above.
         if u.type == 'issued':
-            yices_ctx.assert_formula(compileExpr(env, conj(a.constraints + [u.context])))
+            yices_ctx.assert_formula(compileExpr(env, land(is_safe(u.action), u.context)))
         else: # u.type == 'not_issued'
-            yices_ctx.assert_formula(
-                compileExpr(env, conj([u.context, disj([neg(e) for e in a.constraints])])))
+            yices_ctx.assert_formula(compileExpr(env, land(u.context, is_unsafe(u.action))))
         
         if yices_ctx.check_context() == Status.SAT:
             model = Model.from_context(yices_ctx, 1)
