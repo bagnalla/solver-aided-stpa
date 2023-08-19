@@ -29,6 +29,12 @@ class TypeError(Exception):
 def buildTypingCtx(sys: System) -> Mapping[Ident, Type]:
     ctx: Dict[Ident, Type] = {} # Typing context.
     types: List[Type] = []      # Declared types.
+
+    # Special type for SAFE/UNSAFE actions.
+    actionType: Type = Ident(None, 'action')
+    ctx[Ident(None, 'SAFE')] = actionType
+    ctx[Ident(None, 'UNSAFE')] = actionType
+    types.append(actionType)
     
     def go(s: System, parent: Optional[Ident]) -> None:
         # Qualifier for current system.
@@ -55,11 +61,11 @@ def buildTypingCtx(sys: System) -> Mapping[Ident, Type]:
                 seen.append(vardecl.name)
             ctx[Ident(qualifier, vardecl.name)] = vardecl.ty
 
-        # TODO: Actions? Boolean variable for each action so they can be
-        # referred to in expressions. Or perhaps a special type for
-        # SAFE/UNSAFE instead of Boolean.
+        # Actions. An action variable has the value SAFE iff the
+        # conjunction of all of the action's safety constraints are true.
         for a in s.actions:
-            pass
+            seen.append(a.name)
+            ctx[Ident(qualifier, a.name)] = actionType
 
         # Recurse on subsystems.
         for c in s.components:

@@ -3,7 +3,7 @@
 from control import Action, BinaryExpr, conj, disj, eq, Expr, FinTypeDecl, \
     Ident, IntLiteral, neg, System, Type, UCA, UnaryExpr
 from dataclasses import dataclass
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import assert_never, Dict, List, Mapping, Optional, Sequence, Tuple
 from yices import Config, Context, Model, Status, Types, Terms
 import yices # So we can refer to yices.Type.
 Term = int # Make typechecker happy.
@@ -16,7 +16,6 @@ def printEnv(env: Mapping[Ident, Term]) -> None:
 def compileExpr(env: Mapping[Ident, Term], e: Expr) -> Term:
     match e:
         case IntLiteral():
-        # case typing.int:
             return Terms.integer(e.i)
         case 'true':
             return Terms.true()
@@ -47,11 +46,11 @@ def compileExpr(env: Mapping[Ident, Term], e: Expr) -> Term:
                          'DIV':   Terms.idiv,
                          'WHEN':  Terms.implies }[e.op](c1, c2)
         case _:
-            raise Exception('compileExpr %s' % e)
+            assert_never(e)
 
-# Before asserting any formulas, we first set up the yices context by
-# traversing the system and declaring all types and terms. Returns
-# dictionaries mapping identifiers to their corresponding yices terms.
+# Set up the yices context by traversing the system and declaring all
+# types and terms. Returns dictionaries mapping identifiers to their
+# corresponding yices terms.
 def setupYicesContext(sys: System,
                       ) -> Tuple[Context,                   # Yices context.
                                  Dict[Ident, Term],         # Yices term environment.
@@ -62,6 +61,15 @@ def setupYicesContext(sys: System,
     env: Dict[Ident, Term] = {}
     types: Dict[Ident, yices.Type] = {}
     fintype_els: Dict[Ident, List[Ident]] = {}
+
+    # Special type for SAFE/UNSAFE actions.
+    action_name = Ident(None, 'action')
+    action_elements = [Ident(None, el) for el in ['SAFE', 'UNSAFE']]
+    action_t, action_terms = Types.declare_enum('action', [str(el) for el in action_elements])
+    types[action_name] = action_t
+    fintype_els[action_name] = action_elements
+    for el, tm in zip(action_elements, action_terms):
+        env[el] = tm
 
     def go(s: System, parent: Optional[Ident]) -> None:
         # Qualifier for current system.
@@ -88,7 +96,14 @@ def setupYicesContext(sys: System,
                 case Ident():
                     env[name] = Terms.new_uninterpreted_term(types[vardecl.ty], str(name))
 
-        # TODO actions.
+        # Actions.
+        for a in s.actions:
+            name = Ident(qualifier, a.name)
+            env[name] = Terms.new_uninterpreted_term(action_t, str(name))
+
+            # a is SAFE ⇔ ⋀a.constraints.
+            yices_ctx.assert_formula(Terms.iff(Terms.eq(env[name], env[Ident(None, 'SAFE')]),
+                                               compileExpr(env, conj(a.constraints))))
                 
         # Recurse on subsystems.
         for c in s.components:
@@ -125,12 +140,14 @@ def getActionByName(sys: System, name: Ident) -> Action:
 
 # Assert conjunction of all invariants:
 # conj_inv(sys) ≜ ⋀sys.invariants ∧ ⋀{conj_inv(c) | c ∈ sys.components}.
-def assertInvariants(yices_ctx: Context, env: Dict[Ident, Term], sys: System) -> None:
+def assertInvariants(yices_ctx: Context,
+                     env: Dict[Ident, Term],
+                     sys: System) -> None:
     yices_ctx.assert_formulas([compileExpr(env, e) for e in sys.invariants])
+    if yices_ctx.check_context() == Status.UNSAT:
+        raise Exception("System '%s' invariants are unsatisfiable." % sys.name)
     for c in sys.components:
         assertInvariants(yices_ctx, env, c)
-    if yices_ctx.check_context() == Status.UNSAT:
-        raise Exception('System assumptions are impossible.')
 
 # A scenario is a mapping from identifiers to values. A value is (for
 # now) either a bool, int, or string denoting a fintype element.
@@ -152,7 +169,7 @@ def scenarioFromModel(yices_ctx: Context,                       # Yices context.
                       env: Mapping[Ident, Term],                # Map variables to yices terms.
                       fintype_els: Mapping[Ident, List[Ident]], # Names of FinType elements.
                       model: Model                              # Model produced by yices.
-                      ) -> Scenario:                            # Scenario derived from model.
+                      ) -> Scenario: # Scenario derived from model.
     defined_terms = model.collect_defined_terms()
     scenario: Scenario = Scenario({})
     for name, term in env.items():
@@ -196,7 +213,7 @@ def checkConstraints(yices_ctx: Context,                       # Yices context.
                      fintype_els: Mapping[Ident, List[Ident]], # Names of FinType elements.
                      sys: System,                              # System to check.
                      ucas: Sequence[UCA]                       # UCAs to check.
-                     ) -> Optional[Scenario]:                  # Return counterexample if found.
+                     ) -> Optional[Scenario]: # Return counterexample if found.
     for u in ucas:
         print('Checking %s' % u)
         yices_ctx.push()
@@ -226,7 +243,7 @@ def genScenarios(yices_ctx: Context,                       # Yices context.
                  env: Mapping[Ident, Term],                # Map variables to yices terms.
                  fintype_els: Mapping[Ident, List[Ident]], # Names of FinType elements.
                  sys: System                               # System to generate scenarios for.
-                 ) -> Dict[str, List[Scenario]]:           # Map action names to lists of scenarios.
+                 ) -> Dict[str, List[Scenario]]: # Map action names to lists of scenarios.
     
     # For each action, assert conjunction of its constraints and
     # enumerate models (assignments of variables that satisfy all the
