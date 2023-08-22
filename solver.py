@@ -1,12 +1,16 @@
 # Compiling systems to SMT and invoking the solver (currently yices2).
 
 from control import Action, BinaryExpr, conj, disj, eq, Expr, FinTypeDecl, \
-    Ident, IntLiteral, is_safe, is_unsafe, land, neg, System, Type, UCA, UnaryExpr
+    Ident, IntLiteral, land, lor, neg, System, Type, UCA, UnaryExpr
 from dataclasses import dataclass
-from typing import assert_never, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Dict, List, Mapping, Iterator, Optional, Sequence, Tuple
 from yices import Config, Context, Model, Status, Types, Terms
 import yices # So we can refer to yices.Type.
 Term = int # Make typechecker happy.
+
+@dataclass(frozen=True)
+class SolverError(Exception):
+    msg: str
 
 def printEnv(env: Mapping[Ident, Term]) -> None:
     for name, tm in env.items():
@@ -25,7 +29,7 @@ def compileExpr(env: Mapping[Ident, Term], e: Expr) -> Term:
             if e in env:
                 return env[e]
             else:
-                raise Exception('compileExpr: %s not found in environment %s' % (e, env))
+                raise SolverError('compileExpr: %s not found in environment %s' % (e, env))
         case UnaryExpr():
             return Terms.ynot(compileExpr(env, e.e))
         case BinaryExpr():
@@ -45,31 +49,21 @@ def compileExpr(env: Mapping[Ident, Term], e: Expr) -> Term:
                          'MULT':  Terms.mul,
                          'DIV':   Terms.idiv,
                          'WHEN':  Terms.implies }[e.op](c1, c2)
-        case _:
-            assert_never(e)
 
 # Set up the yices context by traversing the system and declaring all
 # types and terms. Returns dictionaries mapping identifiers to their
 # corresponding yices terms.
-def setupYicesContext(sys: System,
+def setupYicesContext(ctx: Mapping[Ident, Type], # Typing context.
+                      sys: System,               # System.
                       ) -> Tuple[Context,                   # Yices context.
                                  Dict[Ident, Term],         # Yices term environment.
                                  Dict[Ident, List[Ident]]]: # FinType elements.
     yices_ctx = Context(Config())
     bool_t = Types.bool_type()
     int_t = Types.int_type()
-    env: Dict[Ident, Term] = {}
-    types: Dict[Ident, yices.Type] = {}
-    fintype_els: Dict[Ident, List[Ident]] = {}
-
-    # Special type for SAFE/UNSAFE actions.
-    action_name = Ident(None, 'action')
-    action_elements = [Ident(None, el) for el in ['SAFE', 'UNSAFE']]
-    action_t, action_terms = Types.declare_enum('action', [str(el) for el in action_elements])
-    types[action_name] = action_t
-    fintype_els[action_name] = action_elements
-    for el, tm in zip(action_elements, action_terms):
-        env[el] = tm
+    env: Dict[Ident, Term] = {}                # Yices term environment.
+    types: Dict[Ident, yices.Type] = {}        # Yices type environment.
+    fintype_els: Dict[Ident, List[Ident]] = {} # FinType elements.
 
     def go(s: System, parent: Optional[Ident]) -> None:
         # Qualifier for current system.
@@ -98,13 +92,40 @@ def setupYicesContext(sys: System,
 
         # Actions.
         for a in s.actions:
-            name = Ident(qualifier, a.name)
-            env[name] = Terms.new_uninterpreted_term(action_t, str(name))
+            action_name = Ident(qualifier, a.name)
+            allowed_name = Ident(action_name, 'allowed')
+            required_name = Ident(action_name, 'required')
+            env[allowed_name] = Terms.new_uninterpreted_term(bool_t, str(allowed_name))
+            env[required_name] = Terms.new_uninterpreted_term(bool_t, str(required_name))
 
-            # a is SAFE ⇔ ⋀a.constraints.
-            yices_ctx.assert_formula(Terms.iff(Terms.eq(env[name], env[Ident(None, 'SAFE')]),
-                                               compileExpr(env, conj(a.constraints))))
-                
+            # a.allowed ⇔ ⋀a.allowed.
+            yices_ctx.assert_formula(Terms.iff(env[allowed_name],
+                                               compileExpr(env, conj(a.allowed))))
+            if yices_ctx.check_context() == Status.UNSAT:
+                raise SolverError("Action '%s' 'allowed' assumptions are ill-formed" %
+                                  action_name)
+            
+            # a.required ⇔ ⋁a.required.
+            yices_ctx.assert_formula(Terms.iff(env[required_name],
+                                               compileExpr(env, disj(a.required))))
+            if yices_ctx.check_context() == Status.UNSAT:
+                raise SolverError("Action '%s' 'required' assumptions are ill-formed" %
+                                  action_name)
+            
+            # Check that allowed and required constraints are
+            # consistent. I.e., that required implies allowed, or
+            # equivalently, that not allowed implies not required.
+            yices_ctx.push()
+            yices_ctx.assert_formula(Terms.yand([env[required_name],
+                                                 Terms.ynot(env[allowed_name])]))
+            if yices_ctx.check_context() == Status.SAT:
+                model = Model.from_context(yices_ctx, 1)
+                yices_ctx.pop()
+                raise SolverError("Action '%s' required but not allowed in scenario %s" %
+                                  (action_name,
+                                   scenarioFromModel(yices_ctx, ctx, env, fintype_els, model)))
+            yices_ctx.pop()
+            
         # Recurse on subsystems.
         for c in s.components:
             go(c, qualifier)
@@ -118,24 +139,24 @@ def getActionByName(sys: System, name: Ident) -> Action:
     def go(s: System, names: List[str]) -> Action:
         if len(names) > 1:
             if names[0] != s.name:
-                raise Exception("getActionByName: expected system '%s', found '%s'" %
-                                (names[0], s.name))
+                raise SolverError("getActionByName: expected system '%s', found '%s'" %
+                                  (names[0], s.name))
             if len(names) == 2:
                 # Search in current system.
                 for a in s.actions:
                     if a.name == names[1]:
                         return a
-                raise Exception("getActionByName: system '%s' has no action named '%s'" %
-                                (s.name, names[1]))
+                raise SolverError("getActionByName: system '%s' has no action named '%s'" %
+                                  (s.name, names[1]))
             else:
                 # Recursively search subsystems.
                 for c in s.components:
                     if c.name == names[1]:
                         return go(c, names[1:])
-                raise Exception("getActionByName: system '%s' no component named '%s'" %
-                                (s.name, names[1]))
+                raise SolverError("getActionByName: system '%s' no component named '%s'" %
+                                  (s.name, names[1]))
         else:
-            raise Exception("getActionByName: impossible. name: '%s'" % name)
+            raise SolverError("getActionByName: impossible. name: '%s'" % name)
     return go(sys, name.toList())
 
 # Assert conjunction of all invariants:
@@ -145,7 +166,7 @@ def assertInvariants(yices_ctx: Context,
                      sys: System) -> None:
     yices_ctx.assert_formulas([compileExpr(env, e) for e in sys.invariants])
     if yices_ctx.check_context() == Status.UNSAT:
-        raise Exception("System '%s' invariants are unsatisfiable." % sys.name)
+        raise SolverError("System '%s' invariants are unsatisfiable." % sys.name)
     for c in sys.components:
         assertInvariants(yices_ctx, env, c)
 
@@ -164,6 +185,7 @@ class Scenario:
         return list(self.dict.items())
 
 # Convert a yices model to a Scenario.
+# TODO: provide option to print generated variables (e.g., action variables)?
 def scenarioFromModel(yices_ctx: Context,                       # Yices context.
                       ctx: Mapping[Ident, Type],                # Typing context.
                       env: Mapping[Ident, Term],                # Map variables to yices terms.
@@ -173,8 +195,8 @@ def scenarioFromModel(yices_ctx: Context,                       # Yices context.
     defined_terms = model.collect_defined_terms()
     scenario: Scenario = Scenario({})
     for name, term in env.items():
-        if name not in fintype_els and ctx[name] != Ident(None, 'action') \
-           and term in defined_terms:
+        if name not in fintype_els and term in defined_terms \
+           and ctx[name] != Ident(None, 'action'):
             ty: Type = ctx[name]
             match ty:
                 case 'bool':
@@ -190,23 +212,38 @@ def scenarioFromModel(yices_ctx: Context,                       # Yices context.
 # action a, need to verify:
 
 # For 'when issued' UCA:
-# ∀ system states, ⋀a.constraints ⇒ ¬u.context
-# ⇔ ~ (∃ system state, ~(⋀a.constraints ⇒ ¬u.context))
-# ⇔ ~ (∃ system state, ~(~⋀a.constraints ∨ ¬u.context))
-# ⇔ ~ (∃ system state, ⋀a.constraints ∧ u.context).
+# ∀ system states, ⋀a.allowed ⇒ ¬u.context
+# ⇔ ¬(∃ system state, ¬(⋀a.allowed ⇒ ¬u.context))
+# ⇔ ¬(∃ system state, ¬(¬⋀a.allowed ∨ ¬u.context))
+# ⇔ ¬(∃ system state, ⋀a.allowed ∧ u.context).
 
-# I.e., check unsatisfiability of the conjunction of all the
-# constraints with the UCA context.
+# I.e., check unsatisfiability of the conjunction of all the 'allowed'
+# constraints with the UCA context. Or:
+
+# ∀ system states, ⋁a.required ⇒ ¬u.context
+# ⇔ ¬(∃ system state, ¬(⋁a.required ⇒ ¬u.context))
+# ⇔ ¬(∃ system state, ¬(¬⋁a.required ∨ ¬u.context))
+# ⇔ ¬(∃ system state, ⋁a.required ∧ u.context).
+
+# Combining the above into a single assertion:
+# ¬(∃ system state, u.context ∧ (⋀a.allowed ∨ ⋁a.required)).
 
 # For 'when not issued' UCA:
-# ∀ system states, u.context ⇒ ⋀a.constraints
-# ⇔ ~ (∃ system state, ¬(u.context ⇒ ⋀a.constraints))
-# ⇔ ~ (∃ system state, ¬(¬u.context ∨ ⋀a.constraints))
-# ⇔ ~ (∃ system state, u.context ∧ ¬⋀a.constraints)
-# ⇔ ~ (∃ system state, u.context ∧ ⋁{¬P | P ∈ a.constraints}).
+# ∀ system states, u.context ⇒ ⋀a.allowed
+# ⇔ ¬(∃ system state, ¬(u.context ⇒ ⋀a.allowed))
+# ⇔ ¬(∃ system state, ¬(¬u.context ∨ ⋀a.allowed))
+# ⇔ ¬(∃ system state, u.context ∧ ¬⋀a.allowed)
 
 # I.e., check unsatisfiability of conjunction of UCA context with
-# disjunction of negated constraints.
+# disjunction of negated constraints. And:
+
+# ∀ system states, u.context ⇒ ⋁a.required
+# ⇔ ¬(∃ system state, ¬(u.context ⇒ ⋁a.required))
+# ⇔ ¬(∃ system state, ¬(¬u.context ∨ ⋁a.required))
+# ⇔ ¬(∃ system state, u.context ∧ ¬⋁a.required)
+
+# Combining the above into a single assertion:
+# ¬(∃ system state, u.context ∧ ¬⋀a.allowed ∧ ¬⋁a.required)
 
 def checkConstraints(yices_ctx: Context,                       # Yices context.
                      ctx: Mapping[Ident, Type],                # Typing context.
@@ -221,17 +258,15 @@ def checkConstraints(yices_ctx: Context,                       # Yices context.
         
         a = getActionByName(sys, u.action)
 
-        # if u.type == 'issued':
-        #     yices_ctx.assert_formula(compileExpr(env, conj(a.constraints + [u.context])))
-        # else: # u.type == 'not_issued'
-        #     yices_ctx.assert_formula(
-        #         compileExpr(env, conj([u.context, disj([neg(e) for e in a.constraints])])))
+        allowed = Ident(u.action, 'required')
+        required = Ident(u.action, 'required')
 
-        # This should be equivalent to the above.
+        # Assert formulas described by above comments.
         if u.type == 'issued':
-            yices_ctx.assert_formula(compileExpr(env, land(is_safe(u.action), u.context)))
+            yices_ctx.assert_formula(compileExpr(env, land(u.context, lor(allowed, required))))
         else: # u.type == 'not_issued'
-            yices_ctx.assert_formula(compileExpr(env, land(u.context, is_unsafe(u.action))))
+            yices_ctx.assert_formula(compileExpr(env, conj([u.context,
+                                                            neg(allowed), neg(required)])))
         
         if yices_ctx.check_context() == Status.SAT:
             model = Model.from_context(yices_ctx, 1)
@@ -244,38 +279,55 @@ def checkConstraints(yices_ctx: Context,                       # Yices context.
 
     return None
 
-# Generate scenarios compatible with action constraints.
-def genScenarios(yices_ctx: Context,                       # Yices context.
-                 ctx: Mapping[Ident, Type],                # Typing context.
-                 env: Mapping[Ident, Term],                # Map variables to yices terms.
-                 fintype_els: Mapping[Ident, List[Ident]], # Names of FinType elements.
-                 sys: System                               # System to generate scenarios for.
-                 ) -> Dict[str, List[Scenario]]: # Map action names to lists of scenarios.
-    
-    # For each action, assert conjunction of its constraints and
-    # enumerate models (assignments of variables that satisfy all the
-    # constraints while being consistent with all the component
-    # invariants which are assumed to have already been asserted in
-    # the given yices context).
-    
-    scenarios: Dict[str, List[Scenario]] = {}
-    for c in sys.components:
-        for a in c.actions:
-            scenarios[a.name] = []
-            yices_ctx.push()
-            yices_ctx.assert_formulas([compileExpr(env, e) for e in a.constraints])
-            while yices_ctx.check_context() == Status.SAT:
-                model = Model.from_context(yices_ctx, 1)
-                scenario = scenarioFromModel(yices_ctx, ctx, env, fintype_els, model)
-                scenarios[a.name].append(scenario)
-                es: List[Expr] = []
-                for name, val in scenario.items():
-                    if isinstance(val, bool):
-                        es.append(eq(name, 'true' if val else 'false'))
-                    elif isinstance(val, int):
-                        es.append(eq(name, IntLiteral(int(val))))
-                    else:
-                        es.append(eq(name, val))
-                yices_ctx.assert_formula(compileExpr(env, neg(conj(es))))
-            yices_ctx.pop()
-    return scenarios
+# TODO: Add a way to filter out action variables. There should
+# probably be a configuration parameter(s) for the caller to choose
+# which kinds of variables are included in the generated scenarios.
+
+# Generate scenarios compatible with action 'allowed' constraints.
+def genAllowedScenarios(yices_ctx: Context,                       # Yices context.
+                        ctx: Mapping[Ident, Type],                # Typing context.
+                        env: Mapping[Ident, Term],                # Map variables to yices terms.
+                        fintype_els: Mapping[Ident, List[Ident]], # Names of FinType elements.
+                        action: Action
+                        ) -> Iterator[Scenario]:
+    yices_ctx.push()
+    # yices_ctx.assert_formula(compileExpr(env, conj(action.allowed)))
+    yices_ctx.assert_formula(compileExpr(env, conj(action.allowed)))
+    while yices_ctx.check_context() == Status.SAT:
+        model = Model.from_context(yices_ctx, 1)
+        scenario = scenarioFromModel(yices_ctx, ctx, env, fintype_els, model)
+        yield scenario
+        es: List[Expr] = []
+        for name, val in scenario.items():
+            if isinstance(val, bool):
+                es.append(eq(name, 'true' if val else 'false'))
+            elif isinstance(val, int):
+                es.append(eq(name, IntLiteral(int(val))))
+            else:
+                es.append(eq(name, val))
+        yices_ctx.assert_formula(compileExpr(env, neg(conj(es))))
+    yices_ctx.pop()
+
+# Generate scenarios compatible with action 'required' constraints.
+def genRequiredScenarios(yices_ctx: Context,                       # Yices context.
+                        ctx: Mapping[Ident, Type],                # Typing context.
+                        env: Mapping[Ident, Term],                # Map variables to yices terms.
+                        fintype_els: Mapping[Ident, List[Ident]], # Names of FinType elements.
+                        action: Action
+                        ) -> Iterator[Scenario]:
+    yices_ctx.push()
+    yices_ctx.assert_formula(compileExpr(env, disj(action.required)))
+    while yices_ctx.check_context() == Status.SAT:
+        model = Model.from_context(yices_ctx, 1)
+        scenario = scenarioFromModel(yices_ctx, ctx, env, fintype_els, model)
+        yield scenario
+        es: List[Expr] = []
+        for name, val in scenario.items():
+            if isinstance(val, bool):
+                es.append(eq(name, 'true' if val else 'false'))
+            elif isinstance(val, int):
+                es.append(eq(name, IntLiteral(int(val))))
+            else:
+                es.append(eq(name, val))
+        yices_ctx.assert_formula(compileExpr(env, neg(conj(es))))
+    yices_ctx.pop()

@@ -2,7 +2,8 @@
 
 from control import Action, conj, eq, FinTypeDecl, Ident, neg, System, Type, UCA, VarDecl, when
 # from parser import parseBytes
-from solver import assertInvariants, checkConstraints, genScenarios, setupYicesContext
+from solver import assertInvariants, checkConstraints, genAllowedScenarios, \
+    genRequiredScenarios, setupYicesContext
 from tycheck import buildTypingCtx, tycheckSystem, tycheckUCA, TypeError
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 from yices import Config, Context, Model, Status, Types, Terms
@@ -59,7 +60,8 @@ sys: System = \
                                      
                                      # Variable 'sys.aircraft.landing' must be true
                                      # for the 'hit_brakes' action to be safe.
-                                     constraints = [Ident.ofStr('sys.aircraft.landing')])],
+                                     allowed = [Ident.ofStr('sys.aircraft.landing')],
+                                     required = [])],
                    
                    # No internal invariant for 'sys.aircraft'.
                    invariants = []),
@@ -88,11 +90,11 @@ sys: System = \
            
            # The 'sys' system has a single invariant:
            # 'when sys.aircraft.landing and
-           # sys.environment.runway_status = sys.dry', sys.wheels.weight_on_wheels'
+           # sys.environment.runway_status = sys.dry', sys.wheels.weight_on_wheels'.
            
-           # In prose: When the aircraft is landing and the runway is
-           # dry, weight_on_wheels is true. This is an assumption we
-           # have about the world.
+           # I.e., hen the aircraft is landing and the runway is dry,
+           # weight_on_wheels is true. This is an assumption we have
+           # about the world.
            invariants =
            [when(conj([Ident.ofStr('sys.aircraft.landing'),
                        eq(Ident.ofStr('sys.environment.runway_status'),
@@ -105,9 +107,6 @@ sys: System = \
 # UCA hit_brakes:
 #   typ: not issued
 #   context: aircraft.landing
-
-    # Action 'sys.aircraft.hit_brakes' is potentially hazardous when
-    # issued when 'sys.wheels.weight_on_wheels' is false.
 
 # Test UCAs.
 ucas: List[UCA] = \
@@ -134,7 +133,7 @@ except TypeError as err:
     exit(-1)
 
 # Verify UCAs against system specification.
-yices_ctx, env, fintype_els = setupYicesContext(sys)
+yices_ctx, env, fintype_els = setupYicesContext(ctx, sys)
 assertInvariants(yices_ctx, env, sys)
 counterexample = checkConstraints(yices_ctx, ctx, env, fintype_els, sys, ucas)
 if counterexample:
@@ -142,17 +141,33 @@ if counterexample:
     print(counterexample)
 # else:
 
-print('\nConstraints:')
-for c in sys.components:
-    for a in c.actions:
-        for e in a.constraints:
-            print(e)
+# print('\nConstraints:')
+# for c in sys.components:
+#     for a in c.actions:
+#         for e in a.constraints:
+#             print(e)
 
-print('\nScenarios compatible with constraints:')
-for action, scenarios in genScenarios(yices_ctx, ctx, env, fintype_els, sys).items():
-    print("%s:" % action)
-    for scen in scenarios:
-        print('%s' % scen)
+# TODO: This is making me wish the actions were labelled with their
+# full names... We could pretty easily implement a very basic renamer
+# pass that doesn't support imports or any interesting scoping logic
+# to fill in missing qualifiers, but I really would rather avoid that
+# for everything other than identifiers appearing in constraint
+# expressions...
+def printScenarios(system: System) -> None:
+    def go(s: System, parent: Optional[Ident]) -> None:
+        qualifier = Ident(parent, s.name)
+        for a in s.actions:
+            print("\nScenarios in which action '%s' is ALLOWED:" % Ident(qualifier, a.name))
+            for scen in genAllowedScenarios(yices_ctx, ctx, env, fintype_els, a):
+                print(scen)
+            print("\nScenarios in which action '%s' is REQUIRED:" % Ident(qualifier, a.name))
+            for scen in genRequiredScenarios(yices_ctx, ctx, env, fintype_els, a):
+                print(scen)
+        for c in s.components:
+            go(c, qualifier)
+    go(system, None)
+
+printScenarios(sys)
 
 yices_ctx.dispose()
 

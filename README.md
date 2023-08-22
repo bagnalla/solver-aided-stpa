@@ -1,3 +1,5 @@
+:warning: WARNING: This writeup needs to be updated to reflect recent changes. :warning:
+
 I've been toying around with a little proof-of-concept verifier for
 UCAs / control action constraints. It's based on a very high-level
 model of control systems, similar to how they're presented in the STPA

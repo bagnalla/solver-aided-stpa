@@ -4,17 +4,11 @@
 from control import Action, BinaryExpr, Expr, \
     Ident, IntLiteral, System, Type, UCA, UnaryExpr
 from dataclasses import dataclass
-from typing import assert_never, Dict, Generic, List, Mapping, Optional, TypeVar
+from typing import Dict, Generic, List, Mapping, Optional, Set, TypeVar
 
 @dataclass(frozen=True)
 class TypeError(Exception):
     msg: str
-
-# T = TypeVar('T')
-# @dataclass
-# class Symtab(Generic[T]):
-#     tbl: Dict[str, T]
-#     children: Dict[str, Symtab]
 
 # QUESTION: Do we want to enforce lexical scoping rules? The current
 # setup (using a flat dictionary) allows expressions to refer to
@@ -29,12 +23,6 @@ class TypeError(Exception):
 def buildTypingCtx(sys: System) -> Mapping[Ident, Type]:
     ctx: Dict[Ident, Type] = {} # Typing context.
     types: List[Type] = []      # Declared types.
-
-    # Special type for SAFE/UNSAFE actions.
-    actionType: Type = Ident(None, 'action')
-    ctx[Ident(None, 'SAFE')] = actionType
-    ctx[Ident(None, 'UNSAFE')] = actionType
-    types.append(actionType)
     
     def go(s: System, parent: Optional[Ident]) -> None:
         # Qualifier for current system.
@@ -62,17 +50,47 @@ def buildTypingCtx(sys: System) -> Mapping[Ident, Type]:
             ctx[Ident(qualifier, vardecl.name)] = vardecl.ty
 
         # Actions. An action variable has the value SAFE iff the
-        # conjunction of all of the action's safety constraints are true.
+        # conjunction of all of the action's safety constraints are
+        # true. Disallow the current action from appearing in its own
+        # constraints to avoid paradoxical assertions like "an action
+        # is allowed iff it's not allowed".
         for a in s.actions:
             seen.append(a.name)
-            ctx[Ident(qualifier, a.name)] = actionType
+            action_name = Ident(qualifier, a.name)
+            allowed_name = Ident(action_name, 'allowed')
+            required_name = Ident(action_name, 'required')
+            vars: Set[Ident] = set().union(*([fvs(e) for e in a.allowed] +
+                                             [fvs(e) for e in a.required]))
+            if allowed_name in vars:
+                raise TypeError("'%s' appears in constraint for action '%s'" %
+                                (allowed_name, a.name))
+            if required_name in vars:
+                raise TypeError("'%s' appears in constraint for action '%s'" %
+                                (required_name, a.name))
+            ctx[allowed_name] = 'bool'
+            ctx[required_name] = 'bool'
 
         # Recurse on subsystems.
         for c in s.components:
+            if c.name in seen:
+                raise TypeError("Component name '%s' already used" % c.name)
             go(c, qualifier)
 
     go(sys, None)
     return ctx
+
+# Free variables of an expression (i.e., the set of variables that
+# appear in the expression).
+def fvs(e: Expr) -> Set[Ident]:
+    match e:
+        case Ident():
+            return { e }
+        case IntLiteral() | 'true' | 'false':
+            return set()
+        case UnaryExpr():
+            return fvs(e.e)
+        case BinaryExpr():
+            return fvs(e.e1).union(fvs(e.e2))
 
 def printCtx(ctx: Mapping[Ident, Type]) -> None:
     for name, ty in ctx.items():
@@ -116,12 +134,13 @@ def tycheckExpr(e: Expr, ctx: Mapping[Ident, Type]) -> Type:
                     return 'bool'
                 else:
                     raise TypeError('Expected type bool')
-        case _:
-            assert_never(e)
 
 def tycheckAction(a: Action, ctx: Mapping[Ident, Type]) -> None:
-    for c in a.constraints:
-        if tycheckExpr(c, ctx) != 'bool':
+    for e in a.allowed:
+        if tycheckExpr(e, ctx) != 'bool':
+            raise TypeError('constraint must have type bool')
+    for e in a.required:
+        if tycheckExpr(e, ctx) != 'bool':
             raise TypeError('constraint must have type bool')
 
 def tycheckSystem(s: System, ctx: Mapping[Ident, Type]) -> None:

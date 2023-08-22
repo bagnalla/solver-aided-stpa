@@ -6,7 +6,6 @@ from typing import List, Optional, Tuple
 
 Term = int
 
-# TODO: import yices and yices.Type? to avoid collision with control.Type.
 class Type: ...
 
 class Config: ...

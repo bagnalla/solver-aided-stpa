@@ -155,21 +155,13 @@ def div(e1: Expr, e2: Expr) -> Expr:
 def when(e1: Expr, e2: Expr) -> Expr:
     return BinaryExpr(op = 'WHEN', e1 = e1, e2 = e2)
 
-safe: Expr = Ident(None, 'SAFE')
-unsafe: Expr = Ident(None, 'UNSAFE')
-
-def is_safe(e: Expr) -> Expr:
-    return eq(e, safe)
-
-def is_unsafe(e: Expr) -> Expr:
-    return eq(e, unsafe)
-
 # System data structures.
 
 @dataclass(frozen=True)
 class Action:
-    name:        str        # Name of action (e.g., CA1).
-    constraints: List[Expr] # Safety constraints on action.
+    name:     str        # Name of action (e.g., CA1).
+    allowed:  List[Expr] # Constraints on when action is allowed.
+    required: List[Expr] # Constraints on when action is required.
 
 @dataclass(frozen=True)
 class System:
@@ -195,6 +187,7 @@ class UCA:
     def __str__(self) -> str:
         return 'UCA(action=%s, type=%s, context={%s})' % (self.action, self.type, self.context)
 
+# OLD NOTES:
 # Safety constraints on Actions are Boolean-valued expressions that
 # can refer to fields of Components, (e.g., 'World.runway_status ==
 # DRY' if there is a Component named 'World' with field
