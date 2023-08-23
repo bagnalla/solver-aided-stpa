@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
+from dataclasses_json import dataclass_json
 from functools import reduce
 from typing import List, Literal, Optional
 
@@ -16,6 +17,7 @@ from typing import List, Literal, Optional
 # def metaPretty(m: Meta) -> str:
 #     return 'line %s, column %s' % (m.start_line, m.start_column)
 
+@dataclass_json
 @dataclass(frozen=True)
 class Ident:
     qualifier: Optional[Ident]
@@ -49,16 +51,19 @@ class Ident:
 
 Type = Literal['int', 'bool'] | Ident
 
+@dataclass_json
 @dataclass(frozen=True)
 class VarDecl:
     name: str
     ty: Type
 
+@dataclass_json
 @dataclass(frozen=True)
 class FinTypeDecl:
     name: str
     elements: List[str]
 
+@dataclass_json
 @dataclass(frozen=True)
 class IntLiteral:
     i: int
@@ -68,6 +73,7 @@ class IntLiteral:
 
 LiteralExpr = IntLiteral | Literal['true', 'false']
 
+@dataclass_json
 @dataclass(frozen=True)
 class UnaryExpr:
     op: Literal['NOT']
@@ -76,6 +82,7 @@ class UnaryExpr:
     def __str__(self) -> str:
         return '%s %s' % (self.op, self.e)
 
+@dataclass_json
 @dataclass(frozen=True)
 class BinaryExpr:
     op: Literal['AND', 'OR', 'LT', 'LE', 'GT', 'GE', 'EQ',
@@ -157,12 +164,14 @@ def when(e1: Expr, e2: Expr) -> Expr:
 
 # System data structures.
 
+@dataclass_json
 @dataclass(frozen=True)
 class Action:
     name:     str        # Name of action (e.g., CA1).
     allowed:  List[Expr] # Constraints on when action is allowed.
     required: List[Expr] # Constraints on when action is required.
 
+@dataclass_json
 @dataclass(frozen=True)
 class System:
     name:       str               # Name of system.
@@ -178,6 +187,9 @@ class System:
 # simulated via these two anyway).
 UCAType = Literal['issued', 'not issued']
 
+
+
+@dataclass_json
 @dataclass(frozen=True)
 class UCA:
     action:  Ident   # Name of action.
@@ -186,6 +198,16 @@ class UCA:
     
     def __str__(self) -> str:
         return 'UCA(action=%s, type=%s, context={%s})' % (self.action, self.type, self.context)
+
+ex_binop: Expr = mult(IntLiteral(10), IntLiteral(1))
+
+
+# This example came from a typescript representation of the same data and I'm using this as a proof of concept for an api between the two languages
+uca_json_ex1 = '{"action":{"qualifier":null,"name":"Action1"},"type":"issued","context":{"op":"MULT","e1":{"i":10},"e2":{"i":1}}}'
+
+## TODO Leaving a print in here just to validate that this works.  This should eventually be removed 
+print("Successful parse of json version of UCA data type generated from typescript representation of UCA:" ,UCA.from_json(uca_json_ex1), sep="\n")
+
 
 # OLD NOTES:
 # Safety constraints on Actions are Boolean-valued expressions that
