@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 from functools import reduce
 from typing import List, Literal, Optional
+import json 
 
 # # Source metadata. NOT USED YET
 # @dataclass
@@ -23,6 +24,10 @@ class Ident:
     qualifier: Optional[Ident]
     name: str
     
+    # Constructor for loading from dictionary 
+    def __init__(self, dict1):
+        self.__dict__.update(dict1)
+
     def __str__(self) -> str:
         if self.qualifier is None:
             return self.name
@@ -49,13 +54,39 @@ class Ident:
     def ofStr(s: str) -> Ident:
         return Ident.ofList(s.split('.'))
 
+    @staticmethod
+    def ofJson(ident_json: str) -> Ident:
+        try:
+            return json.loads(ident_json, object_hook=Ident)
+        except:
+            raise Exception('Ident.ofJson: invalid Json: ', ident_json)
+
+
 Type = Literal['int', 'bool'] | Ident
 
+def typeOfJson(t : str) -> Type:
+    match t:
+        case 'int': return'int'
+        case 'bool': return 'bool'
+        case id: return Ident.ofJson(id)
+
+""" print(typeOfJson('{"qualifier":{"qualifier":null,"name":"sys"},"name":"DryOrWet"}')) """
 @dataclass_json
 @dataclass(frozen=True)
 class VarDecl:
     name: str
     ty: Type
+
+    @staticmethod
+    def ofJson(vdecl_json: str) -> VarDecl:
+        try:
+            vdec_dict = json.loads(vdecl_json)
+            return VarDecl(name = vdec_dict['name'], ty = typeOfJson(json.dumps(vdec_dict['ty'])))
+        except:
+            raise Exception('VarDecl.ofJson: invalid Json: ', vdecl_json)
+    
+ex = '{"name":"runway_status","ty":{"qualifier":{"qualifier":null,"name":"sys"},"name":"DryOrWet"}}'
+print(VarDecl.ofJson(ex))
 
 @dataclass_json
 @dataclass(frozen=True)
@@ -187,8 +218,6 @@ class System:
 # simulated via these two anyway).
 UCAType = Literal['issued', 'not issued']
 
-
-
 @dataclass_json
 @dataclass(frozen=True)
 class UCA:
@@ -199,15 +228,48 @@ class UCA:
     def __str__(self) -> str:
         return 'UCA(action=%s, type=%s, context={%s})' % (self.action, self.type, self.context)
 
-ex_binop: Expr = mult(IntLiteral(10), IntLiteral(1))
+
+# Currently Broken
+import marshmallow_dataclass as marsh
+UCASchema = marsh.class_schema(UCA)
+SystemSchema = marsh.class_schema(System)
+#PersonSchema().load({"name": "jane", "age": 50.0})
+def uca_from_json(uca_json : str) -> Optional[UCA]: 
+    try:
+        return UCASchema.load(uca_json)
+    except:
+        return None
+
+def uca_successful_parse(uca_json: str) -> None:
+    match uca_from_json(uca_json):
+        case None: 
+            print('Error: failed to parse')
+        case uca: 
+            print(uca)
 
 
-# This example came from a typescript representation of the same data and I'm using this as a proof of concept for an api between the two languages
-uca_json_ex1 = '{"action":{"qualifier":null,"name":"Action1"},"type":"issued","context":{"op":"MULT","e1":{"i":10},"e2":{"i":1}}}'
+def system_from_json(system_json : str) -> Optional[System]: 
+    try:
+        return UCASchema.load(uca_json)
+    except:
+        return None
 
-## TODO Leaving a print in here just to validate that this works.  This should eventually be removed 
-print("Successful parse of json version of UCA data type generated from typescript representation of UCA:" ,UCA.from_json(uca_json_ex1), sep="\n")
+def system_successful_parse(system_json: str) -> None:
+    match system_from_json(system_json):
+        case None: 
+            print('Error: failed to parse')
+        case uca: 
+            print(uca)
 
+if __name__ == "__main__":
+    while True: 
+        try:
+            inp = input()
+        except EOFError:
+            break
+        system_successful_parse(inp)
+        if inp == 'EOF':
+            break
 
 # OLD NOTES:
 # Safety constraints on Actions are Boolean-valued expressions that

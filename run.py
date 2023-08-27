@@ -101,13 +101,16 @@ sys: System = \
                           Ident.ofStr('sys.dry'))]),
                  Ident.ofStr('sys.wheels.weight_on_wheels'))])
 
+print("***************************")                 
+print(System.schema().dump(sys))
+""" print(System.from_json(sys.to_json())) """
+print("***************************")                 
 # UCA hit_brakes:
 #   typ: issued
 #   context: not wheels.weight_on_wheels
 # UCA hit_brakes:
 #   typ: not issued
 #   context: aircraft.landing
-
 # Test UCAs.
 ucas: List[UCA] = \
     [UCA(action = Ident.ofStr('sys.aircraft.hit_brakes'),
