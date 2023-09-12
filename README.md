@@ -1,5 +1,5 @@
 :warning: The code here is *not* released under an open source
-license. Contact [abagnalla@gmail.com](abagnalla@gmail.com) to request
+license. Contact [abagnalla@gmail.com](mailto:abagnalla@gmail.com) to request
 permission to use it. :warning:
 
 This is a proof-of-concept SMT-based verification system (currently
