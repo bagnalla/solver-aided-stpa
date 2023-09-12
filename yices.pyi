@@ -2,7 +2,7 @@ from enum import IntEnum
 from typing import List, Optional, Tuple
 
 # These types are not perfect (more restrictive than the actual API in
-# some places) but are good enough for our purposes.
+# some places) but should be good enough for our purposes.
 
 Term = int
 

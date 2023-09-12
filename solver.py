@@ -8,6 +8,13 @@ from yices import Config, Context, Model, Status, Types, Terms
 import yices # So we can refer to yices.Type.
 Term = int # Make typechecker happy.
 
+# TODO: It might be nice to (somewhere, perhaps not in this tool but
+# in the plugin that invokes it, with whatever necessary support from
+# this tool) report to the user which losses are still possible given
+# the current specification. I.e., gather all unverified UCAs and
+# their associated losses, and let the user decide if/when to see a
+# counterexample that leads to each one.
+
 @dataclass(frozen=True)
 class SolverError(Exception):
     msg: str
@@ -58,9 +65,10 @@ def setupYicesContext(ctx: Mapping[Ident, Type], # Typing context.
                       ) -> Tuple[Context,                   # Yices context.
                                  Dict[Ident, Term],         # Yices term environment.
                                  Dict[Ident, List[Ident]]]: # FinType elements.
-    yices_ctx = Context(Config())
-    bool_t = Types.bool_type()
-    int_t = Types.int_type()
+    bool_t: yices.Type = Types.bool_type()     # Shorthand for yices bool type.
+    int_t: yices.Type = Types.int_type()       # Shorthand for yices int type.
+    
+    yices_ctx: Context = Context(Config())     # Yices context.
     env: Dict[Ident, Term] = {}                # Yices term environment.
     types: Dict[Ident, yices.Type] = {}        # Yices type environment.
     fintype_els: Dict[Ident, List[Ident]] = {} # FinType elements.
@@ -212,6 +220,8 @@ def scenarioFromModel(yices_ctx: Context,                       # Yices context.
 # action a, need to verify:
 
 # For 'when issued' UCA:
+# ∀ system states, u.context ⇒ ¬⋀a.allowed.
+# Or, equivalently:
 # ∀ system states, ⋀a.allowed ⇒ ¬u.context
 # ⇔ ¬(∃ system state, ¬(⋀a.allowed ⇒ ¬u.context))
 # ⇔ ¬(∃ system state, ¬(¬⋀a.allowed ∨ ¬u.context))
@@ -220,6 +230,8 @@ def scenarioFromModel(yices_ctx: Context,                       # Yices context.
 # I.e., check unsatisfiability of the conjunction of all the 'allowed'
 # constraints with the UCA context. Or:
 
+# ∀ system states, u.context ⇒ ¬⋁a.required.
+# Or, equivalently:
 # ∀ system states, ⋁a.required ⇒ ¬u.context
 # ⇔ ¬(∃ system state, ¬(⋁a.required ⇒ ¬u.context))
 # ⇔ ¬(∃ system state, ¬(¬⋁a.required ∨ ¬u.context))
@@ -227,6 +239,9 @@ def scenarioFromModel(yices_ctx: Context,                       # Yices context.
 
 # Combining the above into a single assertion:
 # ¬(∃ system state, u.context ∧ (⋀a.allowed ∨ ⋁a.required)).
+
+# I.e., there should not exist a system state in which the UCA context
+# is true and the action is allowed or required.
 
 # For 'when not issued' UCA:
 # ∀ system states, u.context ⇒ ⋀a.allowed
@@ -245,6 +260,9 @@ def scenarioFromModel(yices_ctx: Context,                       # Yices context.
 # Combining the above into a single assertion:
 # ¬(∃ system state, u.context ∧ ¬⋀a.allowed ∧ ¬⋁a.required)
 
+# I.e., there should not exist a system state in which the UCA context
+# is true and the action is not allowed and not required.
+
 def checkConstraints(yices_ctx: Context,                       # Yices context.
                      ctx: Mapping[Ident, Type],                # Typing context.
                      env: Mapping[Ident, Term],                # Map variables to yices terms.
@@ -257,7 +275,6 @@ def checkConstraints(yices_ctx: Context,                       # Yices context.
         yices_ctx.push()
         
         a = getActionByName(sys, u.action)
-
         allowed = Ident(u.action, 'required')
         required = Ident(u.action, 'required')
 
@@ -283,7 +300,13 @@ def checkConstraints(yices_ctx: Context,                       # Yices context.
 # probably be a configuration parameter(s) for the caller to choose
 # which kinds of variables are included in the generated scenarios.
 
-# Generate scenarios compatible with action 'allowed' constraints.
+# Generate scenarios compatible with action 'allowed'
+# constraints. WARNING: this generator temporarily modifies the yices
+# context. The context is restored to its initial state once the
+# generator is finished. If you want to stop using the generator early
+# (perhaps it never terminates) you can call .pop() on the context to
+# restore it yourself (but you will have to stop using the generator
+# after that point or else it might erroneously pop the context again).
 def genAllowedScenarios(yices_ctx: Context,                       # Yices context.
                         ctx: Mapping[Ident, Type],                # Typing context.
                         env: Mapping[Ident, Term],                # Map variables to yices terms.
@@ -291,7 +314,6 @@ def genAllowedScenarios(yices_ctx: Context,                       # Yices contex
                         action: Action
                         ) -> Iterator[Scenario]:
     yices_ctx.push()
-    # yices_ctx.assert_formula(compileExpr(env, conj(action.allowed)))
     yices_ctx.assert_formula(compileExpr(env, conj(action.allowed)))
     while yices_ctx.check_context() == Status.SAT:
         model = Model.from_context(yices_ctx, 1)
@@ -308,8 +330,9 @@ def genAllowedScenarios(yices_ctx: Context,                       # Yices contex
         yices_ctx.assert_formula(compileExpr(env, neg(conj(es))))
     yices_ctx.pop()
 
-# Generate scenarios compatible with action 'required' constraints.
-def genRequiredScenarios(yices_ctx: Context,                       # Yices context.
+# Generate scenarios compatible with action 'required'
+# constraints. WARNING: see note about yices context on genAllowedScenarios.
+def genRequiredScenarios(yices_ctx: Context,                      # Yices context.
                         ctx: Mapping[Ident, Type],                # Typing context.
                         env: Mapping[Ident, Term],                # Map variables to yices terms.
                         fintype_els: Mapping[Ident, List[Ident]], # Names of FinType elements.

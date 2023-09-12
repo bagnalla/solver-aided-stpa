@@ -91,7 +91,7 @@ class BinaryExpr:
 
 Expr = Ident | LiteralExpr | UnaryExpr | BinaryExpr
 
-### Helper constructors for expressions.
+#| Helper constructors for expressions.
 
 # Unary negation.
 def neg(e: Expr) -> Expr:
@@ -155,13 +155,13 @@ def div(e1: Expr, e2: Expr) -> Expr:
 def when(e1: Expr, e2: Expr) -> Expr:
     return BinaryExpr(op = 'WHEN', e1 = e1, e2 = e2)
 
-# System data structures.
+#| System data structures.
 
 @dataclass(frozen=True)
 class Action:
     name:     str        # Name of action (e.g., CA1).
-    allowed:  List[Expr] # Constraints on when action is allowed.
-    required: List[Expr] # Constraints on when action is required.
+    allowed:  List[Expr] # Constraints for when action is allowed.
+    required: List[Expr] # Constraints for when action is required.
 
 @dataclass(frozen=True)
 class System:

@@ -92,7 +92,7 @@ sys: System = \
            # 'when sys.aircraft.landing and
            # sys.environment.runway_status = sys.dry', sys.wheels.weight_on_wheels'.
            
-           # I.e., hen the aircraft is landing and the runway is dry,
+           # I.e., when the aircraft is landing and the runway is dry,
            # weight_on_wheels is true. This is an assumption we have
            # about the world.
            invariants =

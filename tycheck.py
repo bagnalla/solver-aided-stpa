@@ -20,7 +20,7 @@ class TypeError(Exception):
 # -- but I was thinking that it might be easier with a nested symbol
 # table representation for contexts/environments.
 
-def buildTypingCtx(sys: System) -> Mapping[Ident, Type]:
+def buildTypingCtx(sys: System) -> Dict[Ident, Type]:
     ctx: Dict[Ident, Type] = {} # Typing context.
     types: List[Type] = []      # Declared types.
     
@@ -49,11 +49,15 @@ def buildTypingCtx(sys: System) -> Mapping[Ident, Type]:
                 seen.append(vardecl.name)
             ctx[Ident(qualifier, vardecl.name)] = vardecl.ty
 
-        # Actions. An action variable has the value SAFE iff the
-        # conjunction of all of the action's safety constraints are
-        # true. Disallow the current action from appearing in its own
-        # constraints to avoid paradoxical assertions like "an action
-        # is allowed iff it's not allowed".
+        # Actions. Disallow the current action from appearing in its
+        # own constraints to avoid paradoxical assertions like "an
+        # action is allowed iff it's not allowed".
+        
+        # TODO: should it be possible for an action's 'allowed'
+        # variable to appear in its 'required' constraints, or vice
+        # versa? E.g., could there be a constraint like "this action
+        # is required when it's allowed and ..." or "this action is
+        # allowed when it's required or ...".
         for a in s.actions:
             seen.append(a.name)
             action_name = Ident(qualifier, a.name)
