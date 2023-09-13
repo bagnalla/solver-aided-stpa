@@ -1,6 +1,5 @@
-:warning: The code here is *not* released under an open source
-license. Contact [abagnalla@gmail.com](mailto:abagnalla@gmail.com) to request
-permission to use it. :warning:
+:warning: Contact [abagnalla@gmail.com](mailto:abagnalla@gmail.com) to request
+permission to use this code for commercial purposes. :warning:
 
 This is a proof-of-concept SMT-based verification system (currently
 using a [yices2](https://yices.csl.sri.com/) backend) for
