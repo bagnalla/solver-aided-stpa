@@ -1,7 +1,7 @@
 # Compiling systems to SMT and invoking the solver (currently yices2).
 
-from control import Action, BinaryExpr, conj, disj, eq, Expr, FinTypeDecl, \
-    Ident, IntLiteral, land, lor, neg, System, Type, UCA, UnaryExpr
+from control import Action, BinaryExpr, conj, disj, eq, Expr, FloatLiteral, \
+    FinTypeDecl, Ident, IntLiteral, land, lor, neg, System, Type, UCA, UnaryExpr
 from dataclasses import dataclass
 from typing import Dict, List, Mapping, Iterator, Optional, Sequence, Tuple
 from yices import Config, Context, Model, Status, Types, Terms
@@ -28,6 +28,8 @@ def compileExpr(env: Mapping[Ident, Term], e: Expr) -> Term:
     match e:
         case IntLiteral():
             return Terms.integer(e.i)
+        case FloatLiteral():
+            return Terms.parse_float(e.f)
         case 'true':
             return Terms.true()
         case 'false':

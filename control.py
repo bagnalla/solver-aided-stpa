@@ -47,7 +47,7 @@ class Ident:
     def ofStr(s: str) -> Ident:
         return Ident.ofList(s.split('.'))
 
-Type = Literal['int', 'bool'] | Ident
+Type = Literal['bool', 'int', 'real'] | Ident
 
 @dataclass(frozen=True)
 class VarDecl:
@@ -66,7 +66,14 @@ class IntLiteral:
     def __str(self) -> str:
         return str(self.i)
 
-LiteralExpr = IntLiteral | Literal['true', 'false']
+@dataclass(frozen=True)
+class FloatLiteral:
+    f: float
+    
+    def __str(self) -> str:
+        return str(self.f)
+
+LiteralExpr = FloatLiteral | IntLiteral | Literal['true', 'false']
 
 @dataclass(frozen=True)
 class UnaryExpr:

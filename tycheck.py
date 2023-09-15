@@ -1,7 +1,7 @@
 # Typechecking systems (a well-typed system can be checked by the
 # solver without the solver throwing an error).
 
-from control import Action, BinaryExpr, Expr, \
+from control import Action, BinaryExpr, Expr, FloatLiteral, \
     Ident, IntLiteral, System, Type, UCA, UnaryExpr
 from dataclasses import dataclass
 from typing import Dict, Generic, List, Mapping, Optional, Set, TypeVar
@@ -89,7 +89,7 @@ def fvs(e: Expr) -> Set[Ident]:
     match e:
         case Ident():
             return { e }
-        case IntLiteral() | 'true' | 'false':
+        case IntLiteral() | FloatLiteral() | 'true' | 'false':
             return set()
         case UnaryExpr():
             return fvs(e.e)
@@ -104,6 +104,8 @@ def tycheckExpr(e: Expr, ctx: Mapping[Ident, Type]) -> Type:
     match e:
         case IntLiteral():
             return 'int'
+        case FloatLiteral():
+            return 'real'
         case 'true' | 'false':
             return 'bool'
         case Ident():
@@ -124,12 +126,12 @@ def tycheckExpr(e: Expr, ctx: Mapping[Ident, Type]) -> Type:
             if e.op == 'EQ':
                 return 'bool'
             elif e.op in ['LT', 'LE', 'GT', 'GE']:
-                if ty1 == 'int':
+                if ty1 in ['int', 'real']:
                     return 'bool'
                 else:
                     raise TypeError('Expected type int')
             elif e.op in ['PLUS', 'MINUS', 'MULT', 'DIV']:
-                if ty1 == 'int':
+                if ty1 in['int', 'real']:
                     return 'int'
                 else:
                     raise TypeError('Expected type int')

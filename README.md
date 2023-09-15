@@ -1,7 +1,7 @@
 :warning: Contact [abagnalla@gmail.com](mailto:abagnalla@gmail.com) to request
 permission to use this code for commercial purposes. :warning:
 
-This is a proof-of-concept SMT-based verification system (currently
+This is a proof-of-concept SMT-based validation system (currently
 using a [yices2](https://yices.csl.sri.com/) backend) for
 [STPA](https://youtu.be/2W-iqnPbhyc?si=1iHmgzH7dk9rCDzm). It's based
 on a very high-level model of control systems, similar to how they're
@@ -19,6 +19,11 @@ to the STPA analyst who is coming up with controller safety
 constraints based on the high-level control structure and UCAs
 identified in the STPA process. You might call this approach
 "solver-aided controller constraint specification".
+
+# Requirements
+* [Python >= 3.11](https://www.python.org/downloads/release/python-3114/)
+* [yices2](https://yices.csl.sri.com/)
+* [yices pip package](https://github.com/SRI-CSL/yices2_python_bindings)
 
 # The basic idea
 
@@ -54,7 +59,7 @@ possible.
 - The tool could make recommendations to fix constraints? Perhaps via
   some clever use of interpolants (supported by yices).
 
-- If all the UCAs are verified successfully (proved impossible under
+- If all the UCAs are checked successfully (proved impossible under
   the control action constraints), the tool can generate system states
   that are compatible with the constraints to help the analyst
   consider possibly hazardous scenarios that they may have missed,
@@ -183,7 +188,7 @@ UCA aircraft.hit_brakes:
   context: aircraft.landing is true
 ```
 
-Running the verifier on the above system and UCAs (run `make` to
+Running the tool on the above system and UCAs (run `make` to
 reproduce) produces the following output (see [solver.py](solver.py)
 for the code that compiles expressions and invokes the yices solver):
 
@@ -207,7 +212,7 @@ is not a fundamental limitation -- I just haven't implemented a
 renamer pass yet to fill in missing qualifiers (some kind of namespace
 import mechanism could be helpful as well).
 
-# UCA verification
+# UCA checking
 
 The solver does the following for each UCA of type 'issued' (where the
 action is potentially hazardous when issued in the given context):
@@ -232,13 +237,13 @@ hazardous when **NOT** issued in the given context):
 
 - If successful, this means that no 'allowed' constraint ever prevents
   the action from being executed in the context specified by the UCA,
-  and at least one 'required' constraint requires it to be executed..
+  and at least one 'required' constraint requires it to be executed.
 
 - If unsuccessful, print out a system state in which the UCA context
   is satisfied (and so it would be hazardous to not execute the
   action) but also violates either violates one of the 'allowed'
   constraints which prohibits it from being executed or doesn't
-  satisfy any of the 'required' constraints..
+  satisfy any of the 'required' constraints.
 
 See the comments in [solver.py](solver.py) for mathematical details.
 
