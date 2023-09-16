@@ -168,7 +168,7 @@ system aircraft_brakes_system:
   component aircraft:
     var landing: bool
     action hit_brakes:
-      constraint: wheels.weight_on_wheels is true
+      allowed: wheels.weight_on_wheels is true
   component environment:
     var runway_status: DryOrWet
   component wheels:
