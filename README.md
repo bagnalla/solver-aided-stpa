@@ -1,21 +1,22 @@
 :warning: Contact [abagnalla@gmail.com](mailto:abagnalla@gmail.com) to request
 permission to use this code for commercial purposes. :warning:
 
+# Solver-aided STPA
+
 This is a proof-of-concept SMT-based validation system (currently
 using a [yices2](https://yices.csl.sri.com/) backend) for
 [STPA](https://youtu.be/2W-iqnPbhyc?si=1iHmgzH7dk9rCDzm). It's based
 on a very high-level model of control systems, similar to how they're
 presented in the STPA handbook. There is currently no explicit
-distinction between general variables (representing propositional
-statements about the "real world") and process model variables
-(representing controller "beliefs" about the real world). All
-variables are general variables since they can be used express beliefs
-anyway (but there may be good reason to distinguish between them for,
-e.g., compiling constraints on process model variables to hardware
-monitors to enforce them). There are also no behavioral models of the
-actual control algorithms, so we don't do any kind of 'deep'
-verification of actual system behavior. The tool just provides an aid
-to the STPA analyst who is coming up with controller safety
+distinction between general variables (representing properties of the
+"real world") and process model variables (representing controller
+"beliefs" about the real world). All variables are general variables
+since they can be used express beliefs anyway (but there may be good
+reason to distinguish between them for, e.g., compiling constraints on
+process model variables to hardware monitors). There are no behavioral
+models of the actual control algorithms, so we don't do any kind of
+'deep' verification of actual system behavior. The tool just provides
+an aid to the STPA analyst who is coming up with controller safety
 constraints based on the high-level control structure and UCAs
 identified in the STPA process. You might call this approach
 "solver-aided controller constraint specification".
@@ -97,7 +98,7 @@ Two special variables are automatically generated for each action `a`:
 `a.allowed` and `a.required`. They can be referred to inside
 constraint expressions. `a.allowed` is true iff the conjunction of
 `a`'s `allowed` constraints is true, and `a.required` is true iff the
-disjunction of `a`'s 'required' constraints is true. This enables a
+disjunction of `a`'s `required` constraints is true. This enables a
 kind of compositional reasoning for UCAs like "this action is
 potentially hazardous when action `A` is allowed and action `B` is not
 required".
@@ -120,8 +121,8 @@ class System:
 
 The 'state' of a system is a list of variables, each with a specified
 type (currently 'bool', 'int', or an enum type). The type declarations
-are for declaring enum types. The invariants are properties of the
-internal state and/or subsystems that is expected to always hold (for
+are for declaring enum types. The 'invariants' are properties of the
+internal state and/or subsystems that are expected to always hold (for
 example, two variables of the state might always be related in some
 way). The 'components' are subsystems that can be nested to arbitrary
 depth (the subsystems may themselves be composed of subsystems and so
