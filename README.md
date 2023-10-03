@@ -1,5 +1,5 @@
-:warning: Contact [abagnalla@gmail.com](mailto:abagnalla@gmail.com) to request
-permission to use this code for commercial purposes. :warning:
+Contact [abagnalla@gmail.com](mailto:abagnalla@gmail.com) to request
+permission to use this code for commercial purposes.
 
 # Solver-aided STPA
 
