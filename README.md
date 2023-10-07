@@ -270,4 +270,4 @@ type. To deal with this, the tool doesn't attempt to produce the
 entire list of possible scenarios, but lazily produces scenarios via a
 [generator](https://wiki.python.org/moin/Generators) that can be
 stopped at any point. See the functions `genAllowedScenarios` and
-`genRequiredScenarios` in [solver.py](solver.py)
+`genRequiredScenarios` in [solver.py](solver.py).

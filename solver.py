@@ -277,7 +277,7 @@ def checkConstraints(yices_ctx: Context,                       # Yices context.
         yices_ctx.push()
         
         a = getActionByName(sys, u.action)
-        allowed = Ident(u.action, 'required')
+        allowed = Ident(u.action, 'allowed')
         required = Ident(u.action, 'required')
 
         # Assert formulas described by above comments.
