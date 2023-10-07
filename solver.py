@@ -125,6 +125,8 @@ def setupYicesContext(ctx: Mapping[Ident, Type], # Typing context.
             # Check that allowed and required constraints are
             # consistent. I.e., that required implies allowed, or
             # equivalently, that not allowed implies not required.
+            # TODO: this should probably be done later, after
+            # asserting system invariants.
             yices_ctx.push()
             yices_ctx.assert_formula(Terms.yand([env[required_name],
                                                  Terms.ynot(env[allowed_name])]))
