@@ -1,6 +1,3 @@
-Contact [abagnalla@gmail.com](mailto:abagnalla@gmail.com) to request
-permission to use this code for commercial purposes.
-
 # Solver-aided STPA
 
 This is a proof-of-concept SMT-based validation system (currently
